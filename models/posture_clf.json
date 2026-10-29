@@ -1,0 +1,42 @@
+{
+  "kind": "mlp",
+  "features": [
+    "neck_incl",
+    "trunk_incl",
+    "neck_rel",
+    "head_fwd",
+    "nose_drop",
+    "shoulder_tilt",
+    "head_tilt",
+    "lateral_lean",
+    "ear_sh_gap",
+    "nose_offset",
+    "view_ratio",
+    "hips_visible"
+  ],
+  "threshold": 0.42000000000000004,
+  "cv": {
+    "rules": {
+      "f1": 0.09009009009009009,
+      "precision_bad": 1.0,
+      "recall_bad": 0.04716981132075472,
+      "roc_auc": 0.4825690893977522
+    },
+    "logreg": {
+      "f1": 0.9000982640026204,
+      "precision_bad": 0.9391660970608339,
+      "recall_bad": 0.8641509433962264,
+      "roc_auc": 0.9476264219264185
+    },
+    "mlp": {
+      "f1": 0.9238709677419354,
+      "precision_bad": 0.9483443708609272,
+      "recall_bad": 0.9006289308176101,
+      "roc_auc": 0.9715645081092983
+    }
+  },
+  "n_frames": 3247,
+  "n_sessions": 3,
+  "trained_at": "2026-10-29T11:57:55",
+  "profile": "all"
+}

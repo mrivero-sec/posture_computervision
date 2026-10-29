@@ -1,0 +1,103 @@
+// Configuration materielle + profils (memes valeurs que config.yaml).
+// Carte choisie dans menuconfig : "BAD POSTURE > Carte cible" (Freenove par defaut).
+#pragma once
+
+#include "alert.hpp"
+#include "sdkconfig.h"
+
+#if defined(CONFIG_BADPOSTURE_BOARD_XIAO)
+// ---- Seeed XIAO ESP32S3 Sense (brochage officiel Seeed) ---------------------
+#define BOARD_NAME     "XIAO ESP32S3 Sense"
+#define CAM_PIN_PWDN   -1
+#define CAM_PIN_RESET  -1
+#define CAM_PIN_XCLK   10
+#define CAM_PIN_SIOD   40
+#define CAM_PIN_SIOC   39
+#define CAM_PIN_D7     48
+#define CAM_PIN_D6     11
+#define CAM_PIN_D5     12
+#define CAM_PIN_D4     14
+#define CAM_PIN_D3     16
+#define CAM_PIN_D2     18
+#define CAM_PIN_D1     17
+#define CAM_PIN_D0     15
+#define CAM_PIN_VSYNC  38
+#define CAM_PIN_HREF   47
+#define CAM_PIN_PCLK   13
+// Alertes sur D0, D1, D2 (LED WS2812 externe)
+#define PIN_LED_WS2812  1
+#define PIN_BUZZER      2
+#define PIN_BUTTON      3
+
+#else
+// ---- Freenove ESP32-S3-WROOM CAM (N16R8) ------------------------------------
+// Brochage camera identique a l'ESP32-S3-EYE (exemples Freenove / CameraWebServer)
+#define BOARD_NAME     "Freenove ESP32-S3-WROOM CAM"
+#define CAM_PIN_PWDN   -1
+#define CAM_PIN_RESET  -1
+#define CAM_PIN_XCLK   15
+#define CAM_PIN_SIOD   4
+#define CAM_PIN_SIOC   5
+#define CAM_PIN_D7     16
+#define CAM_PIN_D6     17
+#define CAM_PIN_D5     18
+#define CAM_PIN_D4     12
+#define CAM_PIN_D3     10
+#define CAM_PIN_D2     8
+#define CAM_PIN_D1     9
+#define CAM_PIN_D0     11
+#define CAM_PIN_VSYNC  6
+#define CAM_PIN_HREF   7
+#define CAM_PIN_PCLK   13
+// LED RGB WS2812 soudee sur la carte. Buzzer et bouton sur la breadboard.
+// Broches evitees : camera (4-13, 15-18), USB (19, 20), PSRAM (35-37),
+// carte SD (38-40), UART0 (43, 44), strapping (0, 3, 45, 46), LED (48).
+#define PIN_LED_WS2812  48
+#define PIN_BUZZER      21
+#define PIN_BUTTON      14
+#endif
+
+#define LED_BRIGHTNESS  40  // 0-255, la LED est dans le champ de vision : rester doux
+
+#define BUZZER_FREQ_HZ  2000
+#define BUZZER_BEEP_MS  200
+
+// Cadence : une inference toutes les FRAME_PERIOD_MS au minimum
+#define FRAME_PERIOD_MS 1000
+#define LONG_PRESS_MS   2000   // appui long = changer de profil ; court = snooze 15 min
+#define DOUBLE_PRESS_MS 400    // double appui = etalonner
+#define PIN_BUTTON_BOOT 0      // bouton BOOT soude sur la carte (Freenove et XIAO) : etalonner
+
+// ---- Etalonnage (memes regles que posture/calibration.py, mode trunk) --------
+// Sur ESP32-S3, coco_pose (640x640) prend ~4,4 s par image (doc Espressif) :
+// mesure de 20 s pour avoir 4 images environ (contre 5 s et ~25 images sur PC).
+#define CALIB_COUNTDOWN_S 3.0
+#define CALIB_DURATION_S  20.0
+#define CALIB_MIN_FRAMES  3
+#define CALIB_TRUNK_MODE  true   // la tete ne compte que si l'epaule a bouge
+
+// ---- Rotation de l'image (menuconfig : BAD POSTURE > Rotation camera) ---------
+#if defined(CONFIG_BADPOSTURE_ROTATE_90)
+#define CAM_ROTATE_DEG 90
+#elif defined(CONFIG_BADPOSTURE_ROTATE_180)
+#define CAM_ROTATE_DEG 180
+#elif defined(CONFIG_BADPOSTURE_ROTATE_270)
+#define CAM_ROTATE_DEG 270
+#else
+#define CAM_ROTATE_DEG 0
+#endif
+
+// ---- Profils ---------------------------------------------------------------
+inline posture::AlertParams profile_desk() {
+    posture::AlertParams p;
+    p.alpha = 0.3; p.enter_thr = 0.70; p.exit_thr = 0.40; p.trigger_s = 30;
+    p.exit_hold_s = 5; p.beep_interval_s = 60; p.sound = true;
+    return p;
+}
+
+inline posture::AlertParams profile_practitioner() {
+    posture::AlertParams p;
+    p.alpha = 0.2; p.enter_thr = 0.75; p.exit_thr = 0.45; p.trigger_s = 120;
+    p.exit_hold_s = 5; p.beep_interval_s = 120; p.sound = false;  // LED seule : patient present
+    return p;
+}

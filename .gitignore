@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+*.pt
+data/*.csv
+data/synthetic/
+models/*.joblib
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/dependencies.lock
+data/captures/
+data/*.calib.json
+data/calibration_*.json
+data/logs/
+
+# Tiers / caches
+Freenove_ESP32_S3_WROOM_Board-main/
+Freenove_ESP32_S3_WROOM_Board-main.zip
+.pytest_cache/
