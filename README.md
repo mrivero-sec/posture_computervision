@@ -1,5 +1,7 @@
 # BAD POSTURE
 
+![BAD POSTURE : coach de posture embarque sur ESP32-S3](docs/images/banner.png)
+
 Capteur de posture embarque : camera + LED + buzzer sur **ESP32-S3**.
 Le modele de pose YOLO11n-pose (17 keypoints COCO) extrait cou, epaules, hanches ;
 12 features angulaires alimentent un petit classifieur qui sort une probabilite
@@ -7,6 +9,10 @@ de mauvaise posture ; une machine a etats declenche LED et bip.
 
 Le meme modele de pose et le meme code de features tournent sur PC (Python) et
 sur la carte (C++), donc un classifieur entraine sur PC se deploie tel quel.
+
+![Bonne et mauvaise posture : ecarts de l'epaule par rapport a l'etalonnage](docs/images/postures.png)
+
+![Fonctionnement : camera, modele de pose, features, etalonnage, alerte](docs/images/pipeline.png)
 
 ```
 posture/            package Python (features, regles ISO, alertes, modele)
