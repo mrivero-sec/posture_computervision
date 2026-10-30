@@ -76,7 +76,7 @@ Features compute(const Keypoints &k, double thr) {
     } else if (nose.ok && sh.ok && std::fabs(nose.x - sh.x) > EPS) {
         dirx = nose.x > sh.x ? 1.0 : -1.0;
     } else {
-        // nez cache : yeux, sinon tete supposee en avant de l'epaule
+        // nose hidden: use the eyes, otherwise assume the head is ahead of the shoulder
         P eye = mid(leye, reye);
         if (eye.ok && ear.ok && std::fabs(eye.x - ear.x) > EPS) {
             dirx = eye.x > ear.x ? 1.0 : -1.0;

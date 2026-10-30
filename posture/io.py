@@ -1,4 +1,4 @@
-"""Lecture / ecriture des sessions de collecte (CSV, sans images)."""
+"""Read / write collection sessions (CSV, no images)."""
 from __future__ import annotations
 
 import csv
@@ -36,12 +36,12 @@ class SessionWriter:
 
 
 def load_sessions(data_dir: Path | str = DATA_DIR, pattern: str = "*.csv"):
-    """Retourne (df, kps) ; kps de forme (N, 17, 3)."""
+    """Returns (df, kps); kps has shape (N, 17, 3)."""
     import pandas as pd
 
     files = sorted(Path(data_dir).glob(pattern))
     if not files:
-        raise FileNotFoundError(f"Aucune session dans {data_dir}")
+        raise FileNotFoundError(f"No session found in {data_dir}")
     df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
     df["session"] = df["session"].astype(str)
     kps = df[KP_COLS].to_numpy(dtype=np.float64).reshape(-1, 17, 3)

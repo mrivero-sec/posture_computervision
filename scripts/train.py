@@ -1,11 +1,11 @@
-"""Entraine et compare : regles ISO vs regression logistique vs MLP.
+"""Trains and compares: ISO rules vs logistic regression vs MLP.
 
-Validation croisee PAR SESSION (GroupKFold) : des frames voisines sont presque
-identiques, un decoupage par frame gonflerait les scores.
+Cross-validation BY SESSION (GroupKFold): neighbouring frames are almost
+identical, so splitting by frame would inflate the scores.
 
-  python scripts/train.py                       # donnees reelles dans data/
-  python scripts/train.py --data data/synthetic # test du pipeline
-  python scripts/train.py --profile desk        # un seul profil
+  python scripts/train.py                       # real data in data/
+  python scripts/train.py --data data/synthetic # pipeline test
+  python scripts/train.py --profile desk        # a single profile
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def main():
     ap.add_argument("--data", default=str(DATA_DIR))
     ap.add_argument("--profile", default=None)
     ap.add_argument("--out", default=str(ROOT / "models" / "posture_clf.joblib"))
-    ap.add_argument("--force", choices=["logreg", "mlp"], default=None, help="imposer le type de modele")
+    ap.add_argument("--force", choices=["logreg", "mlp"], default=None, help="force the model type")
     args = ap.parse_args()
 
     import joblib
@@ -75,18 +75,18 @@ def main():
         df, kps = df[m].reset_index(drop=True), kps[m]
     present = np.array([features.person_present(k) for k in kps])
     df, kps = df[present].reset_index(drop=True), kps[present]
-    X = features.compute_many(kps)          # recalcule : suit toute evolution de features.py
+    X = features.compute_many(kps)          # recomputed: follows any change in features.py
     y = df["label"].to_numpy(dtype=int)
     groups = df["session"].to_numpy()
     n_sess = len(set(groups))
     print(f"{len(y)} frames, {n_sess} sessions, {int(y.sum())} bad / {int((1 - y).sum())} good")
     if len(set(y)) < 2:
-        raise SystemExit("Il faut des exemples good ET bad.")
+        raise SystemExit("Both good AND bad examples are needed.")
 
     if n_sess >= 2:
         splits = list(GroupKFold(n_splits=min(5, n_sess)).split(X, y, groups))
     else:
-        print("ATTENTION : une seule session, validation par frame (scores optimistes).")
+        print("WARNING: only one session, validating by frame (optimistic scores).")
         splits = list(StratifiedKFold(5, shuffle=True, random_state=0).split(X, y))
 
     oof = {"rules": np.array([rules.score(f) for f in X]), "logreg": np.zeros(len(y)), "mlp": np.zeros(len(y))}
@@ -96,13 +96,13 @@ def main():
             oof[kind][te] = pipe.predict_proba(X[te])[:, 1]
 
     report = {k: metrics(y, p) for k, p in oof.items()}
-    print(f"\n{'modele':8s} {'F1':>6s} {'prec':>6s} {'rappel':>7s} {'AUC':>6s}")
+    print(f"\n{'model':8s} {'F1':>6s} {'prec':>6s} {'recall':>7s} {'AUC':>6s}")
     for k, r in report.items():
         print(f"{k:8s} {r['f1']:6.3f} {r['precision_bad']:6.3f} {r['recall_bad']:7.3f} {r['roc_auc']:6.3f}")
 
     if args.force:
         kind = args.force
-    else:  # le plus simple gagne s'il est a moins de 0.02 de F1
+    else:  # the simpler model wins if within 0.02 F1
         kind = "logreg" if report["logreg"]["f1"] >= report["mlp"]["f1"] - 0.02 else "mlp"
     thr = best_threshold(y, oof[kind])
     final = build(kind).fit(X, y)
@@ -118,8 +118,8 @@ def main():
     joblib.dump(bundle, out)
     meta = {k: v for k, v in bundle.items() if k != "pipeline"}
     out.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    print(f"\nModele retenu : {kind} (seuil F1 optimal en validation = {thr:.2f}) -> {out}")
-    print("Etape suivante : python scripts/export_c.py")
+    print(f"\nSelected model: {kind} (best F1 threshold in validation = {thr:.2f}) -> {out}")
+    print("Next step: python scripts/export_c.py")
 
 
 if __name__ == "__main__":

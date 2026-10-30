@@ -1,14 +1,14 @@
-"""Detection temps reel + alertes (simule la LED et le buzzer sur PC).
+"""Real-time detection + alerts (simulates the LED and buzzer on the PC).
 
-Touches : c = etalonner (bonne posture 5 s), s = snooze 15 min, p = changer de profil, q = quitter,
-          f = signaler une fausse alerte, m = signaler une alerte manquee (notes dans le log).
+Keys: c = calibrate (good posture for 5 s), s = snooze 15 min, p = switch profile, q = quit,
+      f = flag a false alert, m = flag a missed alert (notes in the log).
 
-Un log CSV (chiffres seulement, aucune image) est ecrit par defaut dans data/logs/.
+A CSV log (numbers only, no images) is written to data/logs/ by default.
 
-Exemples :
-  python scripts/run.py                      # source et rotation de config.yaml (camera de la carte)
-  python scripts/run.py --calibrate          # commence par un etalonnage
-  python scripts/run.py --source 0 --rotate 0   # webcam du PC
+Examples:
+  python scripts/run.py                      # source and rotation from config.yaml (board camera)
+  python scripts/run.py --calibrate          # start with a calibration
+  python scripts/run.py --source 0 --rotate 0   # PC webcam
   python scripts/run.py --profile practitioner --no-sound
   python scripts/run.py --source video.mp4 --log run_log.csv
 """
@@ -35,16 +35,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--profile", choices=list(cfg["profiles"]), default="desk")
     ap.add_argument("--source", default=str(cam.get("source", cam["index"])),
-                    help="index webcam, fichier video ou serial:COM3")
+                    help="webcam index, video file or serial:COM3")
     ap.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=int(cam.get("rotate", 0)))
     ap.add_argument("--backend", default=cfg["pose"]["backend"])
-    ap.add_argument("--model", default=None, help="chemin du .joblib (defaut models/posture_clf.joblib, sinon regles)")
-    ap.add_argument("--calibrate", action="store_true", help="etalonner au demarrage")
-    ap.add_argument("--no-calib", action="store_true", help="ignorer l'etalonnage enregistre")
+    ap.add_argument("--model", default=None, help="path to the .joblib (default models/posture_clf.joblib, otherwise rules)")
+    ap.add_argument("--calibrate", action="store_true", help="calibrate at startup")
+    ap.add_argument("--no-calib", action="store_true", help="ignore the saved calibration")
     ap.add_argument("--no-sound", action="store_true")
-    ap.add_argument("--log", default=None, help="CSV de log (defaut data/logs/run_<date>.csv)")
+    ap.add_argument("--log", default=None, help="log CSV (default data/logs/run_<date>.csv)")
     ap.add_argument("--no-log", action="store_true")
-    ap.add_argument("--headless", action="store_true", help="sans fenetre (log seulement)")
+    ap.add_argument("--headless", action="store_true", help="no window (log only)")
     args = ap.parse_args()
 
     import cv2
@@ -52,8 +52,8 @@ def main():
     profiles = list(cfg["profiles"])
     prof = args.profile
     model = PostureModel(args.model, cfg["rules"])
-    print(f"Classifieur : {model.kind}" + ("" if cfg.get("calibration", {}).get("use_model_with_calib", False)
-                                           else " (remplace par l'etalonnage une fois etalonne)"))
+    print(f"Classifier: {model.kind}" + ("" if cfg.get("calibration", {}).get("use_model_with_calib", False)
+                                           else " (replaced by the calibration once calibrated)"))
     cal_thr = calib.thresholds_from_cfg(cfg)
     cal_par = calib.params_from_cfg(cfg)
     cal_kw = calib.score_kw(cal_par)
@@ -66,7 +66,7 @@ def main():
             return None
         b = calib.Baseline.load(calib.default_path(name))
         if b:
-            print(f"Etalonnage '{name}' charge ({b.created}, {b.n_frames} images). c pour le refaire.")
+            print(f"Calibration '{name}' loaded ({b.created}, {b.n_frames} frames). Press c to redo it.")
         return b
 
     def make_calibrator(name):
@@ -91,7 +91,7 @@ def main():
         log_path = Path(args.log) if args.log else _common.ROOT / "data" / "logs" / f"run_{datetime.now():%Y%m%d_%H%M%S}.csv"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_fh = open(log_path, "w", newline="", encoding="utf-8")
-        print(f"Log : {log_path}  (f = fausse alerte, m = alerte manquee)")
+        print(f"Log: {log_path}  (f = false alert, m = missed alert)")
     log = csv.writer(log_fh) if log_fh else None
     DEV_COLS = ["sh_drop", "sh_fwd", "d_neck", "head_drop", "head_fwd", "neck_short", "scale"]
     if log:
@@ -109,7 +109,7 @@ def main():
         if not ok:
             break
         frame_i += 1
-        now = frame_i / fps_file if is_file else time.time() - t0  # temps video pour les fichiers
+        now = frame_i / fps_file if is_file else time.time() - t0  # video time for files
         if now - last < period:
             if not is_file and not args.headless:
                 cv2.waitKey(1)
@@ -126,7 +126,7 @@ def main():
             if b is not None:
                 baseline = b
                 b.save(calib.default_path(prof))
-                info = f"Etalonnage enregistre ({b.n_frames} images)"
+                info = f"Calibration saved ({b.n_frames} frames)"
                 print(info)
             elif err:
                 info = err
@@ -140,7 +140,7 @@ def main():
                     dev = calib.deviations(baseline, kps, f, thr)
                     cprob = calib.score(dev, cal_thr, cal_par["scale_min"], cal_par["scale_max"], **cal_kw)
                     if cprob is not None and (not cal_par["use_model_with_calib"] or cprob > prob):
-                        prob, worst = cprob, "etal:" + calib.worst(dev, cal_thr, **cal_kw)
+                        prob, worst = cprob, "calib:" + calib.worst(dev, cal_thr, **cal_kw)
             state, do_beep = st.update(now, prob)
         sound_on = cfg["profiles"][prof].get("sound", True) and not args.no_sound
         if do_beep and sound_on:
@@ -156,22 +156,22 @@ def main():
         color = STATE_COLOR[state]
         draw(frame, kps, thr)
         cv2.rectangle(frame, (0, 0), (frame.shape[1] - 1, frame.shape[0] - 1), color, 12)
-        src = "etalonnage" if (cprob is not None and not cal_par["use_model_with_calib"]) else model.kind
+        src = "calibration" if (cprob is not None and not cal_par["use_model_with_calib"]) else model.kind
         put(frame, f"{state}  conf={st.ema:.2f}  {prof}  {src}", 28, color, 0.6)
         if calibrator.active:
             put(frame, calibrator.message(now), 56, (0, 255, 255), 0.6)
         elif f is not None:
-            put(frame, f"cou {f[0]:5.1f}  tronc {f[1]:5.1f}  pire: {worst}", 54)
+            put(frame, f"neck {f[0]:5.1f}  trunk {f[1]:5.1f}  worst: {worst}", 54)
             if baseline is None:
-                put(frame, "pas d'etalonnage : c pour etalonner", 76, (0, 200, 255))
+                put(frame, "not calibrated: press c to calibrate", 76, (0, 200, 255))
             elif dev is not None and cprob is None:
-                put(frame, f"etalonnage perime (echelle {dev['scale']:.2f}) : c pour refaire", 76, (0, 200, 255))
+                put(frame, f"calibration stale (scale {dev['scale']:.2f}): press c to redo it", 76, (0, 200, 255))
             elif dev is not None:
-                put(frame, f"d_cou {dev['d_neck']:+5.1f}  tete bas {dev['head_drop']:+.2f} avant {dev['head_fwd']:+.2f}", 76)
-                put(frame, f"epaule bas {dev['sh_drop']:+.2f} avant {dev['sh_fwd']:+.2f}  cou court {dev['neck_short']:+.2f}  p={cprob:.2f}", 98)
+                put(frame, f"d_neck {dev['d_neck']:+5.1f}  head_drop {dev['head_drop']:+.2f}  head_fwd {dev['head_fwd']:+.2f}", 76)
+                put(frame, f"sh_drop {dev['sh_drop']:+.2f}  sh_fwd {dev['sh_fwd']:+.2f}  neck_short {dev['neck_short']:+.2f}  p={cprob:.2f}", 98)
         if info and not calibrator.active:
             put(frame, info, frame.shape[0] - 36, (0, 255, 255), 0.5)
-        put(frame, "c=etalonner s=snooze p=profil f=fausse alerte m=manquee q=quitter", frame.shape[0] - 14, (220, 220, 220), 0.42)
+        put(frame, "c=calibrate s=snooze p=profile f=false alert m=missed q=quit", frame.shape[0] - 14, (220, 220, 220), 0.42)
         cv2.imshow("BAD POSTURE", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
@@ -181,7 +181,7 @@ def main():
             calibrator.start(now)
         if key in (ord("f"), ord("m")):
             event = "FP" if key == ord("f") else "MISS"
-            info = f"note : {'fausse alerte' if event == 'FP' else 'alerte manquee'} a {now / 60:.1f} min"
+            info = f"noted: {'false alert' if event == 'FP' else 'missed alert'} at {now / 60:.1f} min"
             print(info)
         if key == ord("s"):
             st.snooze(now)

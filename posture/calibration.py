@@ -1,27 +1,27 @@
-"""Etalonnage personnel : position de reference en bonne posture.
+"""Personal calibration: reference position in good posture.
 
-La camera est fixe. On enregistre quelques secondes de bonne posture, puis on
-mesure l'ecart a cette reference, en unites de "longueur oreille-epaule" de
-reference (environ 15-20 cm chez un adulte). Cela permet de detecter
-l'avachissement et la penche du tronc meme quand les hanches sont hors champ.
+The camera is fixed. A few seconds of good posture are recorded, then the
+deviation from that reference is measured in units of the reference
+"ear-shoulder length" (about 15-20 cm for an adult). This detects slouching
+and leaning forward even when the hips are out of frame.
 
-Mesures d'ecart (positives = vers la mauvaise posture) :
-  d_neck     inclinaison oreille-epaule en plus de la reference (deg)
-  head_drop  oreille plus basse que la reference (dos qui s'affaisse)
-  head_fwd   oreille plus en avant que la reference (tete projetee)
-  sh_drop    epaule plus basse que la reference (dos voute)
-  sh_fwd     epaule plus en avant que la reference (tronc penche)
-  neck_short distance oreille-epaule raccourcie (tete qui s'enfonce, dos rond)
+Deviations (positive = towards bad posture):
+  d_neck     ear-shoulder inclination beyond the reference (deg)
+  head_drop  ear lower than the reference (back sagging)
+  head_fwd   ear further forward than the reference (forward head)
+  sh_drop    shoulder lower than the reference (rounded back)
+  sh_fwd     shoulder further forward than the reference (trunk leaning)
+  neck_short shorter ear-shoulder distance (head sinking, rounded back)
 
-Si la personne s'est rapprochee ou eloignee de la camera, l'etalonnage est
-considere comme perime. Echelle = sqrt(taille de tete x longueur oreille-epaule),
-chacune relative a la reference. Un changement de distance a la camera
-agrandit (ou reduit) les deux ensemble ; une mauvaise posture les fait varier
-en sens inverse (cou plus court, tete qui parait plus grande en se penchant),
-donc le produit reste proche de 1. Constate sur les donnees du 2026-10-29 :
-chacune seule sortait de [0,75 ; 1,33] dans 40 a 60 % des images "bad".
+If the person has moved closer to or further from the camera, the calibration
+is considered stale. Scale = sqrt(head size x ear-shoulder length), each
+relative to the reference. Changing the distance to the camera makes both
+bigger (or smaller) together; bad posture moves them in opposite directions
+(shorter neck, head looking bigger when leaning in), so the product stays
+close to 1. Observed on the 2026-10-29 data: either one alone fell outside
+[0.75, 1.33] in 40 to 60 % of the "bad" frames.
 
-Sur PC uniquement pour l'instant (pas encore porte dans firmware/).
+Mirrored in firmware/main/calibration.cpp (tests/test_parity.py).
 """
 from __future__ import annotations
 
@@ -39,10 +39,10 @@ from .keypoints import L_EAR, L_EYE, L_SH, NOSE, R_EAR, R_EYE, R_SH
 IDX = {n: i for i, n in enumerate(FEATURE_NAMES)}
 CALIB_DIR = Path(__file__).resolve().parent.parent / "data"
 
-DEFAULT_THRESHOLDS = {      # (seuil, echelle) comme dans rules.py ; score 0.5 au seuil
-    "sh_drop": (0.12, 0.07),    # tronc : epaule qui descend (dos qui s'affaisse)
-    "sh_fwd": (0.30, 0.10),     # tronc : epaule qui avance (penche en avant)
-    "d_neck": (12.0, 5.0),      # tete
+DEFAULT_THRESHOLDS = {      # (threshold, scale) as in rules.py; score 0.5 at the threshold
+    "sh_drop": (0.12, 0.07),    # trunk: shoulder drops (back sagging)
+    "sh_fwd": (0.30, 0.10),     # trunk: shoulder moves forward (leaning in)
+    "d_neck": (12.0, 5.0),      # head
     "head_drop": (0.35, 0.15),
     "head_fwd": (0.45, 0.15),
     "neck_short": (0.15, 0.07),
@@ -50,13 +50,13 @@ DEFAULT_THRESHOLDS = {      # (seuil, echelle) comme dans rules.py ; score 0.5 a
 TRUNK_KEYS = ("sh_drop", "sh_fwd")
 HEAD_KEYS = ("d_neck", "head_drop", "head_fwd", "neck_short")
 DEFAULTS = {"duration_s": 5.0, "countdown_s": 3.0, "min_frames": 8, "scale_min": 0.75, "scale_max": 1.33,
-            # mode "trunk" : la tete ne compte que si les epaules ont bouge aussi.
-            # Regarder vers le bas (epaules immobiles) ne declenche donc rien.
+            # "trunk" mode: the head only counts if the shoulders have moved too.
+            # Looking down (shoulders still) therefore triggers nothing.
             "mode": "trunk", "gate_sh_drop": 0.07, "gate_sh_fwd": 0.10}
 
 
 def side_points(kps, thr: float = 0.5):
-    """Oreille et epaule du cote le mieux vu + direction du regard. None si absent."""
+    """Ear and shoulder on the best-seen side + facing direction. None if missing."""
     def conf(i):
         return float(kps[i][2]) if float(kps[i][2]) >= thr else 0.0
 
@@ -72,7 +72,7 @@ def side_points(kps, thr: float = 0.5):
     ear = (float(kps[ear_i][0]), float(kps[ear_i][1]))
     sh = (float(kps[sh_i][0]), float(kps[sh_i][1]))
     dirx = 0.0
-    for i in (NOSE, L_EYE, R_EYE):       # nez, sinon un oeil
+    for i in (NOSE, L_EYE, R_EYE):       # nose, otherwise an eye
         if conf(i) > 0.0 and abs(float(kps[i][0]) - ear[0]) > 1e-6:
             dirx = 1.0 if float(kps[i][0]) > ear[0] else -1.0
             break
@@ -80,7 +80,7 @@ def side_points(kps, thr: float = 0.5):
 
 
 def head_sizes(kps, ear, thr: float = 0.5) -> tuple[float, float]:
-    """(oreille-nez, oreille-oeil) en px, 0 si non visible. Independant de la posture."""
+    """(ear-nose, ear-eye) in px, 0 if not visible. Independent of posture."""
     dn = de = 0.0
     if float(kps[NOSE][2]) >= thr:
         dn = math.hypot(float(kps[NOSE][0]) - ear[0], float(kps[NOSE][1]) - ear[1])
@@ -95,13 +95,13 @@ class Baseline:
     ear: tuple
     sh: tuple
     dirx: float
-    ref: float              # distance oreille-epaule (px)
-    features: list           # mediane des features en bonne posture
+    ref: float              # ear-shoulder distance (px)
+    features: list           # median features in good posture
     created: str = ""
     profile: str = ""
     n_frames: int = 0
-    head_nose: float = 0.0   # distance oreille-nez de reference (px), pour l'echelle
-    head_eye: float = 0.0    # distance oreille-oeil de reference (px)
+    head_nose: float = 0.0   # reference ear-nose distance (px), for the scale
+    head_eye: float = 0.0    # reference ear-eye distance (px)
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,12 +121,12 @@ def default_path(profile: str) -> Path:
 
 
 def _neck_angle(ear, sh, dirx: float) -> float:
-    """Inclinaison epaule->oreille vs verticale, + = tete en avant (deg)."""
+    """Shoulder->ear inclination vs vertical, + = head forward (deg)."""
     return math.degrees(math.atan2(dirx * (ear[0] - sh[0]), -(ear[1] - sh[1])))
 
 
 def deviations(b: Baseline, kps, f, thr: float = 0.5) -> dict | None:
-    """Ecarts a la reference, ou None si non mesurable."""
+    """Deviations from the reference, or None if they cannot be measured."""
     sp = side_points(kps, thr)
     if sp is None or b.ref <= 1e-6:
         return None
@@ -138,9 +138,9 @@ def deviations(b: Baseline, kps, f, thr: float = 0.5) -> dict | None:
     elif dn > 0 and b.head_nose > 0:
         scale = math.sqrt(dn / b.head_nose * neck)
     else:
-        scale = 1.0          # taille de tete inconnue : on fait confiance a l'etalonnage
-    # camera fixe, personne toujours tournee du meme cote : on garde la direction
-    # de la reference (robuste quand le nez est cache par une main)
+        scale = 1.0          # head size unknown: trust the calibration
+    # fixed camera, person always facing the same way: keep the reference
+    # direction (robust when the nose is hidden by a hand)
     dirx = b.dirx or 1.0
     return {
         "d_neck": _neck_angle(ear, sh, dirx) - _neck_angle(b.ear, b.sh, dirx),
@@ -166,7 +166,7 @@ def exceedances(dev: dict, thresholds=None, mode="trunk", gate_sh_drop=0.07, gat
 
 def score(dev: dict | None, thresholds=None, scale_min=0.75, scale_max=1.33,
           mode="trunk", gate_sh_drop=0.07, gate_sh_fwd=0.10) -> float | None:
-    """Probabilite de mauvaise posture d'apres l'ecart ; None si non applicable."""
+    """Bad posture probability from the deviations; None if not applicable."""
     if dev is None or not (scale_min <= dev["scale"] <= scale_max):
         return None
     ex = exceedances(dev, thresholds, mode, gate_sh_drop, gate_sh_fwd)
@@ -181,13 +181,13 @@ def worst(dev: dict | None, thresholds=None, mode="trunk", gate_sh_drop=0.07, ga
 
 
 def score_kw(params: dict) -> dict:
-    """Arguments de score() / worst() tires de params_from_cfg()."""
+    """score() / worst() arguments taken from params_from_cfg()."""
     return {k: params[k] for k in ("mode", "gate_sh_drop", "gate_sh_fwd")}
 
 
 @dataclass
 class Calibrator:
-    """Machine a etats : IDLE -> COUNTDOWN -> RECORDING -> IDLE (+ baseline)."""
+    """State machine: IDLE -> COUNTDOWN -> RECORDING -> IDLE (+ baseline)."""
     profile: str = "desk"
     duration_s: float = DEFAULTS["duration_s"]
     countdown_s: float = DEFAULTS["countdown_s"]
@@ -208,14 +208,14 @@ class Calibrator:
 
     def message(self, now: float) -> str:
         if self.state == "COUNTDOWN":
-            return f"ETALONNAGE : tiens-toi bien droit... {math.ceil(self.countdown_s - (now - self.t_start))}"
+            return f"CALIBRATION: sit up straight... {math.ceil(self.countdown_s - (now - self.t_start))}"
         if self.state == "RECORDING":
             left = self.duration_s - (now - self.t_start - self.countdown_s)
-            return f"ETALONNAGE : ne bouge plus ({max(left, 0):.0f} s)  {len(self._pts)} images"
+            return f"CALIBRATION: hold still ({max(left, 0):.0f} s)  {len(self._pts)} frames"
         return ""
 
     def update(self, now: float, kps, f, thr: float = 0.5) -> tuple[Baseline | None, str]:
-        """A appeler a chaque image. Retourne (baseline, erreur) a la fin, sinon (None, '')."""
+        """Call on every frame. Returns (baseline, error) at the end, otherwise (None, '')."""
         if self.state == "COUNTDOWN" and now - self.t_start >= self.countdown_s:
             self.state = "RECORDING"
         if self.state == "RECORDING":
@@ -227,7 +227,7 @@ class Calibrator:
             if now - self.t_start >= self.countdown_s + self.duration_s:
                 self.state = "IDLE"
                 if len(self._pts) < self.min_frames:
-                    return None, f"etalonnage rate : seulement {len(self._pts)} images exploitables"
+                    return None, f"calibration failed: only {len(self._pts)} usable frames"
                 ear = np.median([p[0] for p in self._pts], axis=0)
                 sh = np.median([p[1] for p in self._pts], axis=0)
                 dirs = [p[2] for p in self._pts if p[2] != 0.0]

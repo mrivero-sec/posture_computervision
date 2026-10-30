@@ -1,11 +1,11 @@
-"""Estimation de pose -> 17 keypoints au format COCO.
+"""Pose estimation -> 17 keypoints in COCO format.
 
-Le format COCO-17 est utilise partout (PC et ESP32-S3) pour que le classifieur
-entraine sur PC soit directement deployable sur la carte (modele coco_pose
-YOLO11n-pose d'Espressif).
+COCO-17 is used everywhere (PC and ESP32-S3) so that a classifier trained on
+the PC can be deployed on the board as is (Espressif's coco_pose YOLO11n-pose
+model).
 
-Sortie commune : ndarray float32 de forme (17, 3) -> (x_pixel, y_pixel, conf).
-Un keypoint absent vaut (0, 0, 0), comme sur ESP-DL.
+Common output: float32 ndarray of shape (17, 3) -> (x_pixel, y_pixel, conf).
+A missing keypoint is (0, 0, 0), as in ESP-DL.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ NOSE, L_EYE, R_EYE, L_EAR, R_EAR = 0, 1, 2, 3, 4
 L_SH, R_SH, L_ELB, R_ELB, L_WR, R_WR = 5, 6, 7, 8, 9, 10
 L_HIP, R_HIP = 11, 12
 
-# Segments dessines a l'ecran
+# Segments drawn on screen
 SKELETON = [
     (L_EAR, L_EYE), (L_EYE, NOSE), (NOSE, R_EYE), (R_EYE, R_EAR),
     (L_SH, R_SH), (L_SH, L_ELB), (L_ELB, L_WR), (R_SH, R_ELB), (R_ELB, R_WR),
@@ -37,21 +37,21 @@ def empty_kps() -> np.ndarray:
 
 
 def load_yolo(weights: str = "yolo11n-pose.pt"):
-    """Charge YOLO en coupant l'envoi de statistiques d'usage d'Ultralytics."""
+    """Load YOLO with Ultralytics usage analytics turned off."""
     try:
         from ultralytics import settings
 
         if settings.get("sync", False):
             settings.update({"sync": False})
-    except Exception:  # anciennes versions sans settings : on continue
+    except Exception:  # older versions without settings: carry on
         pass
-    from ultralytics import YOLO  # import tardif : dependance lourde
+    from ultralytics import YOLO  # lazy import: heavy dependency
 
     return YOLO(weights)
 
 
 class YoloPose:
-    """Ultralytics YOLO11n-pose : meme famille que le modele ESP-DL coco_pose."""
+    """Ultralytics YOLO11n-pose: same family as the ESP-DL coco_pose model."""
 
     def __init__(self, weights: str = "yolo11n-pose.pt", imgsz: int = 320, device: str | None = None):
         self.model = load_yolo(weights)
@@ -62,7 +62,7 @@ class YoloPose:
         res = self.model.predict(frame_bgr, imgsz=self.imgsz, verbose=False, device=self.device)[0]
         if res.keypoints is None or len(res.keypoints) == 0:
             return empty_kps()
-        # personne la plus grande = la plus proche de la camera
+        # largest person = closest to the camera
         boxes = res.boxes.xywh.cpu().numpy()
         idx = int(np.argmax(boxes[:, 2] * boxes[:, 3]))
         xy = res.keypoints.xy[idx].cpu().numpy()
@@ -74,7 +74,7 @@ class YoloPose:
 
 
 class MediaPipePose:
-    """Alternative legere (licence Apache 2.0), remappee vers COCO-17."""
+    """Lightweight alternative (Apache 2.0 licence), remapped to COCO-17."""
 
     def __init__(self, model_complexity: int = 1):
         import mediapipe as mp
@@ -103,7 +103,7 @@ def make_backend(name: str, **kw):
         return YoloPose(**kw)
     if name in ("mediapipe", "mp"):
         return MediaPipePose(**kw)
-    raise ValueError(f"backend inconnu : {name}")
+    raise ValueError(f"unknown backend: {name}")
 
 
 def draw(frame, kps: np.ndarray, conf_thr: float = 0.5, color=(0, 255, 0)):

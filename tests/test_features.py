@@ -10,7 +10,7 @@ IDX = {n: i for i, n in enumerate(features.FEATURE_NAMES)}
 
 
 def side_view(trunk_deg, neck_deg, facing=1.0, hips=True):
-    """Profil gauche : hanche (300,400), tronc 200 px, cou 80 px."""
+    """Left profile: hip (300,400), trunk 200 px, neck 80 px."""
     k = empty_kps()
     hx, hy = 300.0, 400.0
     sx = hx + facing * 200 * math.sin(math.radians(trunk_deg))

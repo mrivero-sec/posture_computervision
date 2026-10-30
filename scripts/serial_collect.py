@@ -1,13 +1,13 @@
-"""Collecte depuis la carte ESP32-S3 via USB serie (camera et angle du produit reel).
+"""Collects data from the ESP32-S3 board over USB serial (real product camera and angle).
 
-Le firmware envoie une ligne `KP,<ms>,x0,y0,...,x16,y16` par image. Ce script
-les labellise au clavier dans une petite fenetre et les ecrit au meme format
-que collect.py, donc train.py les utilise directement.
+The firmware sends one `KP,<ms>,x0,y0,...,x16,y16` line per frame. This script
+labels them from the keyboard in a small window and writes them in the same
+format as collect.py, so train.py can use them directly.
 
   pip install pyserial
   python scripts/serial_collect.py --port COM5 --profile practitioner
 
-Touches (fenetre active) : g = good, b = bad, espace = pause, q = quitter.
+Keys (window focused): g = good, b = bad, space = pause, q = quit.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def parse_kp(line: str):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", required=True, help="ex. COM5 (Windows) ou /dev/ttyACM0")
+    ap.add_argument("--port", required=True, help="e.g. COM5 (Windows) or /dev/ttyACM0")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--profile", choices=["desk", "practitioner"], default="desk")
     ap.add_argument("--session", default=None)
@@ -49,7 +49,7 @@ def main():
     ser = serial.Serial(args.port, args.baud, timeout=0.05)
     label, counts, t0 = None, {0: 0, 1: 0}, time.time()
     canvas = np.zeros((140, 640, 3), np.uint8)
-    last_info = "en attente de la carte..."
+    last_info = "waiting for the board..."
     try:
         while True:
             raw = ser.readline().decode("utf-8", "ignore")
@@ -60,15 +60,15 @@ def main():
                     if label is not None:
                         writer.write(session, time.time() - t0, args.profile, label, kps, f)
                         counts[label] += 1
-                    last_info = f"cou {f[0]:5.1f}  tronc {f[1]:5.1f}  cervical {f[2]:5.1f}  regles p={rules.score(f):.2f}"
+                    last_info = f"neck {f[0]:5.1f}  trunk {f[1]:5.1f}  neck_rel {f[2]:5.1f}  rules p={rules.score(f):.2f}"
             elif raw.startswith("ST,"):
                 pass
             canvas[:] = 30
             status = {None: "PAUSE", 0: "REC GOOD", 1: "REC BAD"}[label]
             put(canvas, f"{status}  good={counts[0]} bad={counts[1]}  {session}", 30)
             put(canvas, last_info, 65)
-            put(canvas, "g=good  b=bad  espace=pause  q=quitter", 120, (200, 200, 200), 0.5)
-            cv2.imshow("BAD POSTURE - collecte ESP32", canvas)
+            put(canvas, "g=good  b=bad  space=pause  q=quit", 120, (200, 200, 200), 0.5)
+            cv2.imshow("BAD POSTURE - ESP32 collect", canvas)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break

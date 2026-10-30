@@ -1,14 +1,14 @@
-// Rotation d'une image 16 bits/pixel (RGB565) par pas de 90 deg, sens horaire.
-// Memes conventions que cv2.rotate (90 = ROTATE_90_CLOCKWISE,
-// 270 = ROTATE_90_COUNTERCLOCKWISE), verifie par tests/test_parity.py.
-// La carte posee en portrait doit voir la personne debout, comme sur PC.
+// Rotates a 16-bit/pixel (RGB565) image in 90 deg steps, clockwise.
+// Same conventions as cv2.rotate (90 = ROTATE_90_CLOCKWISE,
+// 270 = ROTATE_90_COUNTERCLOCKWISE), checked by tests/test_parity.py.
+// With the board in portrait, the person must appear upright, as on the PC.
 #pragma once
 
 #include <cstdint>
 
 namespace posture {
 
-// dst doit contenir w*h pixels. Retourne les dimensions de sortie dans dw, dh.
+// dst must hold w*h pixels. Returns the output size in dw, dh.
 inline void rotate_u16(const uint16_t *src, int w, int h, uint16_t *dst, int deg, int &dw, int &dh) {
     if (deg == 90 || deg == 270) { dw = h; dh = w; }
     else { dw = w; dh = h; }

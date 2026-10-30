@@ -1,11 +1,11 @@
-"""Features posturales calculees depuis 17 keypoints COCO.
+"""Posture features computed from 17 COCO keypoints.
 
-IMPORTANT : ce fichier est le miroir exact de firmware/main/features.cpp.
-Toute modification doit etre reportee des deux cotes (le test
-tests/test_parity.py compare les deux implementations).
+IMPORTANT: this file is the exact mirror of firmware/main/features.cpp.
+Any change must be made on both sides (tests/test_parity.py compares the
+two implementations).
 
-Conventions : image en pixels, y vers le bas. Les angles sont en degres.
-"Avant" = direction vers laquelle regarde la personne (nez devant l'oreille).
+Conventions: image in pixels, y pointing down. Angles are in degrees.
+"Forward" = the direction the person is facing (nose in front of the ear).
 """
 from __future__ import annotations
 
@@ -16,18 +16,18 @@ import numpy as np
 from .keypoints import (L_EAR, L_EYE, L_HIP, L_SH, NOSE, R_EAR, R_EYE, R_HIP, R_SH)
 
 FEATURE_NAMES = [
-    "neck_incl",      # angle epaule->oreille vs verticale (+ = tete en avant)
-    "trunk_incl",     # angle hanche->epaule vs verticale (+ = penche en avant)
-    "neck_rel",       # neck_incl - trunk_incl (flexion cervicale)
-    "head_fwd",       # decalage horizontal oreille/epaule / longueur de reference
-    "nose_drop",      # nez sous l'oreille / longueur de reference (regard bas)
-    "shoulder_tilt",  # |angle ligne des epaules vs horizontale|
-    "head_tilt",      # |angle ligne des yeux (ou oreilles) vs horizontale|
-    "lateral_lean",   # |angle milieu hanches -> milieu epaules vs verticale|
-    "ear_sh_gap",     # hauteur oreille au-dessus de l'epaule / longueur de reference
-    "nose_offset",    # |nez - milieu epaules| horizontal / longueur de reference
-    "view_ratio",     # largeur d'epaules / longueur de reference (0 = profil)
-    "hips_visible",   # 1 si au moins une hanche est detectee
+    "neck_incl",      # shoulder->ear angle vs vertical (+ = head forward)
+    "trunk_incl",     # hip->shoulder angle vs vertical (+ = leaning forward)
+    "neck_rel",       # neck_incl - trunk_incl (neck flexion)
+    "head_fwd",       # horizontal ear/shoulder offset / reference length
+    "nose_drop",      # nose below the ear / reference length (looking down)
+    "shoulder_tilt",  # |shoulder line angle vs horizontal|
+    "head_tilt",      # |eye (or ear) line angle vs horizontal|
+    "lateral_lean",   # |mid-hips -> mid-shoulders angle vs vertical|
+    "ear_sh_gap",     # ear height above the shoulder / reference length
+    "nose_offset",    # horizontal |nose - mid-shoulders| / reference length
+    "view_ratio",     # shoulder width / reference length (0 = side view)
+    "hips_visible",   # 1 if at least one hip is detected
 ]
 N_FEATURES = len(FEATURE_NAMES)
 CONF_THR = 0.5
@@ -70,21 +70,21 @@ def _dist(a: _P, b: _P) -> float:
 
 
 def person_present(kps, thr: float = CONF_THR) -> bool:
-    """Assez de points pour juger : (nez ou une oreille) + une epaule."""
+    """Enough points to judge: (nose or one ear) + one shoulder."""
     head = _pt(kps, NOSE, thr).ok or _pt(kps, L_EAR, thr).ok or _pt(kps, R_EAR, thr).ok
     sh = _pt(kps, L_SH, thr).ok or _pt(kps, R_SH, thr).ok
     return head and sh
 
 
 def compute(kps, thr: float = CONF_THR) -> np.ndarray:
-    """kps : (17, 3) [x, y, conf]. Retourne un vecteur float64 de N_FEATURES."""
+    """kps: (17, 3) [x, y, conf]. Returns a float64 vector of N_FEATURES."""
     nose = _pt(kps, NOSE, thr)
     leye, reye = _pt(kps, L_EYE, thr), _pt(kps, R_EYE, thr)
     lear, rear = _pt(kps, L_EAR, thr), _pt(kps, R_EAR, thr)
     lsh, rsh = _pt(kps, L_SH, thr), _pt(kps, R_SH, thr)
     lhip, rhip = _pt(kps, L_HIP, thr), _pt(kps, R_HIP, thr)
 
-    # cote le plus visible pour la vue de profil (egalite -> gauche)
+    # most visible side for the side view (tie -> left)
     score_l = int(lear.ok) + int(lsh.ok) + int(lhip.ok)
     score_r = int(rear.ok) + int(rsh.ok) + int(rhip.ok)
     if score_l >= score_r:
@@ -105,22 +105,22 @@ def compute(kps, thr: float = CONF_THR) -> np.ndarray:
     mid_ear = _mid(lear, rear)
     hips_visible = 1.0 if mid_hip.ok else 0.0
 
-    # direction du regard (+1 = vers x croissant)
+    # facing direction (+1 = towards increasing x)
     dirx = 1.0
     if nose.ok and ear.ok and abs(nose.x - ear.x) > EPS:
         dirx = 1.0 if nose.x > ear.x else -1.0
     elif nose.ok and sh.ok and abs(nose.x - sh.x) > EPS:
         dirx = 1.0 if nose.x > sh.x else -1.0
     else:
-        # nez cache (main devant la bouche...) : yeux, sinon on suppose la tete
-        # en avant de l'epaule (sinon l'angle s'inverserait et paraitrait "bon")
+        # nose hidden (hand in front of the mouth...): use the eyes, otherwise assume the
+        # head is ahead of the shoulder (else the angle would flip and look "good")
         eye = _mid(leye, reye)
         if eye.ok and ear.ok and abs(eye.x - ear.x) > EPS:
             dirx = 1.0 if eye.x > ear.x else -1.0
         elif ear.ok and sh.ok and abs(ear.x - sh.x) > EPS:
             dirx = 1.0 if ear.x > sh.x else -1.0
 
-    # longueur de reference (invariance a l'echelle)
+    # reference length (scale invariance)
     sh_w = _dist(lsh, rsh) if (lsh.ok and rsh.ok) else 0.0
     if mid_hip.ok and mid_sh.ok:
         L = _dist(mid_sh, mid_hip)
@@ -185,5 +185,5 @@ def compute(kps, thr: float = CONF_THR) -> np.ndarray:
 
 
 def compute_many(kps_array: np.ndarray, thr: float = CONF_THR) -> np.ndarray:
-    """kps_array : (N, 17, 3) -> (N, N_FEATURES)."""
+    """kps_array: (N, 17, 3) -> (N, N_FEATURES)."""
     return np.stack([compute(k, thr) for k in kps_array]) if len(kps_array) else np.zeros((0, N_FEATURES))

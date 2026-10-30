@@ -1,8 +1,8 @@
-"""Camera de la carte ESP32-S3 lue par le cable USB (sketch arduino/cam_serial).
+"""ESP32-S3 board camera read over the USB cable (sketch arduino/cam_serial).
 
-Protocole : le PC envoie 'c', la carte repond "FRAME" + longueur (uint32 LE) + JPEG.
-SerialCam imite cv2.VideoCapture (read / isOpened / release / get) pour etre
-utilisable comme n'importe quelle source video dans collect.py et run.py.
+Protocol: the PC sends 'c', the board replies "FRAME" + length (uint32 LE) + JPEG.
+SerialCam mimics cv2.VideoCapture (read / isOpened / release / get) so it can be
+used like any other video source in collect.py and run.py.
 """
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ def open_serial(port: str, baud: int):
 
     if not hasattr(serial, "Serial"):
         raise SystemExit(
-            f"Le module 'serial' charge ({getattr(serial, '__file__', '?')}) n'est pas pyserial.\n"
-            "Corrige avec :  pip uninstall -y serial  puis  pip install --force-reinstall pyserial"
+            f"The loaded 'serial' module ({getattr(serial, '__file__', '?')}) is not pyserial.\n"
+            "Fix it with:  pip uninstall -y serial  then  pip install --force-reinstall pyserial"
         )
-    # DTR/RTS a False AVANT l'ouverture : sinon le circuit d'auto-reset
-    # peut redemarrer la carte ou la bloquer en mode telechargement.
+    # DTR/RTS set to False BEFORE opening: otherwise the auto-reset circuit
+    # may reboot the board or hold it in download mode.
     ser = serial.Serial()
     ser.port, ser.baudrate, ser.timeout = port, baud, 2
     ser.dtr = False
@@ -32,18 +32,18 @@ def open_serial(port: str, baud: int):
     try:
         ser.open()
     except serial.SerialException as e:
-        raise SystemExit(f"Impossible d'ouvrir {port} : {e}\n"
-                         "Port deja utilise ? (Moniteur serie Arduino ouvert, autre script en cours)")
+        raise SystemExit(f"Cannot open {port}: {e}\n"
+                         "Port already in use? (Arduino Serial Monitor open, another script running)")
     return ser
 
 
 def read_jpeg(ser, timeout: float = 3.0, log=print) -> bytes | None:
-    """Demande une image et renvoie les octets JPEG (None si rien recu)."""
+    """Request a frame and return the JPEG bytes (None if nothing was received)."""
     ser.reset_input_buffer()
     ser.write(b"c")
     buf = b""
     deadline = time.time() + timeout
-    while time.time() < deadline:            # cherche l'en-tete, affiche les lignes texte
+    while time.time() < deadline:            # look for the header, print text lines
         b = ser.read(1)
         if not b:
             continue
@@ -53,7 +53,7 @@ def read_jpeg(ser, timeout: float = 3.0, log=print) -> bytes | None:
         if b == b"\n":
             line = buf.decode("utf-8", "ignore").strip()
             if line and log:
-                log(f"[carte] {line}")
+                log(f"[board] {line}")
             buf = b""
     else:
         return None
@@ -89,7 +89,7 @@ class SerialCam:
                     self.last_jpeg = jpg
                     return True, img
             if i == 1:
-                print("Pas d'image recue (sketch cam_serial televerse ? bon port ? Moniteur serie ferme ?)")
+                print("No frame received (cam_serial sketch uploaded? right port? Serial Monitor closed?)")
         return False, None
 
     def set(self, *_):
@@ -105,7 +105,7 @@ class SerialCam:
 
 
 class Rotated:
-    """Enveloppe une source video et tourne chaque image (sens horaire)."""
+    """Wraps a video source and rotates each frame (clockwise)."""
 
     def __init__(self, cap, degrees: int):
         import cv2

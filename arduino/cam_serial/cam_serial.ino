@@ -1,17 +1,17 @@
-// BAD POSTURE - test camera SANS Wi-Fi, via le cable USB (port COM/UART)
-// Le PC envoie 'c' -> la carte capture une image JPEG et renvoie :
-//   "FRAME" + longueur (uint32, little-endian) + octets JPEG
-// A utiliser avec : python scripts/serial_viewer.py --port COMx
-// Ne PAS ouvrir le Moniteur serie d'Arduino en meme temps (port occupe).
+// BAD POSTURE - camera test WITHOUT Wi-Fi, over the USB cable (COM/UART port)
+// The PC sends 'c' -> the board captures a JPEG frame and replies:
+//   "FRAME" + length (uint32, little-endian) + JPEG bytes
+// Use with: python scripts/serial_viewer.py --port COMx
+// Do NOT open the Arduino Serial Monitor at the same time (port busy).
 //
-// Reglages Outils : ESP32S3 Dev Module, PSRAM = OPI PSRAM,
+// Tools settings: ESP32S3 Dev Module, PSRAM = OPI PSRAM,
 // Flash 16MB, Partition 16M Flash (3MB APP/9.9MB FATFS), USB CDC On Boot = Disabled.
 
 #include "esp_camera.h"
 
-#define BAUD 2000000   // la puce CH343 supporte jusqu'a 6 Mbit/s
+#define BAUD 2000000   // the CH343 chip supports up to 6 Mbit/s
 
-// Brochage Freenove ESP32-S3-WROOM CAM (= ESP32-S3-EYE)
+// Freenove ESP32-S3-WROOM CAM pinout (= ESP32-S3-EYE)
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM  15
@@ -58,27 +58,27 @@ void setup() {
   c.xclk_freq_hz = 20000000;
   c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size   = FRAMESIZE_VGA;      // 640x480
-  c.jpeg_quality = 12;                 // 10 = meilleur, 63 = pire
+  c.jpeg_quality = 12;                 // 10 = best, 63 = worst
   c.fb_count     = 2;
   c.fb_location  = CAMERA_FB_IN_PSRAM;
   c.grab_mode    = CAMERA_GRAB_LATEST;
 
   if (!psramFound()) {
-    Serial.println("ERR PSRAM non detectee : Outils > PSRAM = OPI PSRAM");
+    Serial.println("ERR PSRAM not detected: Tools > PSRAM = OPI PSRAM");
     rgb(40, 0, 0);
     while (true) delay(1000);
   }
 
   esp_err_t err = esp_camera_init(&c);
   if (err != ESP_OK) {
-    Serial.printf("ERR esp_camera_init 0x%x (nappe camera bien enfoncee ?)\n", err);
+    Serial.printf("ERR esp_camera_init 0x%x (is the camera ribbon fully seated?)\n", err);
     rgb(40, 0, 0);
     while (true) delay(1000);
   }
 
   sensor_t *s = esp_camera_sensor_get();
   Serial.printf("OK camera PID=0x%x, VGA JPEG, %d baud\n", s->id.PID, BAUD);
-  rgb(0, 30, 0);   // vert = pret
+  rgb(0, 30, 0);   // green = ready
 }
 
 void loop() {

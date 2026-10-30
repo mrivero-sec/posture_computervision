@@ -1,5 +1,5 @@
-"""Verifie que le firmware C++ (features, regles, classifieur, alertes) donne
-exactement les memes resultats que le Python. Necessite g++ (sinon test ignore)."""
+"""Checks that the C++ firmware (features, rules, classifier, alerts) gives
+exactly the same results as the Python code. Needs g++ (skipped otherwise)."""
 import shutil
 import subprocess
 import sys
@@ -15,7 +15,7 @@ from posture import features, rules  # noqa: E402
 from posture.alert import AlertParams, AlertState  # noqa: E402
 
 FW = ROOT / "firmware" / "main"
-pytestmark = pytest.mark.skipif(shutil.which("g++") is None, reason="g++ absent")
+pytestmark = pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not found")
 
 
 def build(tmp: Path, model_header: Path | None) -> Path:
@@ -35,7 +35,7 @@ def random_kps(n=400, seed=1):
 
     rng = np.random.default_rng(seed)
     ks = [ms.sample(rng, "desk" if i % 2 else "practitioner")[0] for i in range(n)]
-    # quelques cas degeneres : points manquants au hasard
+    # a few degenerate cases: random missing points
     for k in ks[::7]:
         k[rng.integers(0, 17, size=4), :] = 0
     ks.append(np.zeros((17, 3), np.float32))
@@ -49,7 +49,7 @@ def run_exe(exe, kps, mode="features"):
 
 
 def _kps_roundtrip(kps):
-    # le harnais lit 6 decimales : on compare sur les memes valeurs
+    # the harness reads 6 decimals: compare on the same values
     return np.round(kps.astype(np.float64), 6).astype(np.float32)
 
 
@@ -63,7 +63,7 @@ def test_features_and_rules_parity(tmp_path):
     np.testing.assert_array_equal(c[:, 12].astype(bool), py_present)
     py_rules = np.array([rules.score(f) for f in py_f])
     np.testing.assert_allclose(c[:, 14], py_rules, atol=1e-6)
-    np.testing.assert_allclose(c[:, 13], py_rules, atol=1e-6)  # sans modele : regles
+    np.testing.assert_allclose(c[:, 13], py_rules, atol=1e-6)  # no model: rules
 
 
 @pytest.mark.parametrize("kind", ["logreg", "mlp"])
@@ -87,7 +87,7 @@ def test_model_parity(tmp_path, kind):
     c = run_exe(exe, kps)
     pipe = joblib.load(model)["pipeline"]
     py_p = pipe.predict_proba(features.compute_many(kps))[:, 1]
-    np.testing.assert_allclose(c[:, 13], py_p, atol=1e-4)  # poids exportes en float32
+    np.testing.assert_allclose(c[:, 13], py_p, atol=1e-4)  # weights exported as float32
     assert train  # import ok
 
 
@@ -112,7 +112,7 @@ def test_alert_parity(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Etalonnage (calibration.cpp) et rotation d'image (image_rotate.hpp)
+# Calibration (calibration.cpp) and image rotation (image_rotate.hpp)
 
 from posture import calibration as calib  # noqa: E402
 
@@ -122,7 +122,7 @@ def _fmt(k):
 
 
 def _calib_case(rng, n_cal=14, n_eval=150, conf01=False):
-    """Profil assis a camera fixe, bruit, points manquants ; conf 0/1 comme ESP-DL si conf01."""
+    """Seated profile, fixed camera, noise, missing points; conf 0/1 like ESP-DL if conf01."""
     import make_synthetic as ms
 
     base = ms.sample(rng, "desk")[0].astype(np.float64)
@@ -152,7 +152,7 @@ def test_calibration_parity(tmp_path, seed, conf01):
     exe = build(tmp_path, None)
     rng = np.random.default_rng(seed)
     cal_k, ev_k = _calib_case(rng, conf01=conf01)
-    times = [0.25 * i for i in range(len(cal_k))]   # countdown 1 s, duree 2 s -> fin a t >= 3
+    times = [0.25 * i for i in range(len(cal_k))]   # countdown 1 s, duration 2 s -> ends at t >= 3
     lines = [f"C,{t:.3f},{int(features.person_present(k))},{_fmt(k)}" for t, k in zip(times, cal_k)]
     lines += [f"E,{_fmt(k)}" for k in ev_k]
     out = subprocess.run([str(exe), "calib"], input="\n".join(lines) + "\n", capture_output=True,

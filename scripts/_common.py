@@ -1,4 +1,4 @@
-"""Utilitaires communs aux scripts (chemin du package, ouverture camera)."""
+"""Shared helpers for the scripts (package path, opening the camera)."""
 from __future__ import annotations
 
 import sys
@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 
 def open_source(source: str, width: int, height: int, rotate: int = 0):
-    """Source video : index webcam ("0"), fichier, ou camera de la carte ("serial:COM3")."""
+    """Video source: webcam index ("0"), a file, or the board camera ("serial:COM3")."""
     from posture.serialcam import Rotated
 
     cap = _open_raw(source, width, height)
@@ -23,19 +23,19 @@ def _open_raw(source: str, width: int, height: int):
     from posture.serialcam import SerialCam
 
     if source.lower().startswith("serial:"):
-        parts = source.split(":")          # serial:COM3 ou serial:COM3:2000000
+        parts = source.split(":")          # serial:COM3 or serial:COM3:2000000
         baud = int(parts[2]) if len(parts) > 2 else 2_000_000
         return SerialCam(parts[1], baud)
     if source.isdigit():
         idx = int(source)
-        # CAP_DSHOW evite un delai de 10 s a l'ouverture sous Windows
+        # CAP_DSHOW avoids a 10 s delay when opening on Windows
         cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if sys.platform.startswith("win") else cv2.VideoCapture(idx)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     else:
         cap = cv2.VideoCapture(source)
     if not cap.isOpened():
-        raise SystemExit(f"Impossible d'ouvrir la source video : {source}")
+        raise SystemExit(f"Cannot open the video source: {source}")
     return cap
 
 

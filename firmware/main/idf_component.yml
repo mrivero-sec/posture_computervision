@@ -1,5 +1,5 @@
 dependencies:
   idf: ">=5.3"
-  espressif/coco_pose: "^0.4.2"     # YOLO11n-pose 17 keypoints COCO (tire esp-dl ~3.3)
+  espressif/coco_pose: "^0.4.2"     # YOLO11n-pose, 17 COCO keypoints (pulls esp-dl ~3.3)
   espressif/esp32-camera: "^2.0.0"
   espressif/led_strip: "^3.0.0"

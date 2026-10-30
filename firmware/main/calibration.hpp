@@ -1,10 +1,10 @@
-// Etalonnage personnel (miroir EXACT de posture/calibration.py, verifie par
-// tests/test_parity.py). C++ pur, sans dependance ESP-IDF : compilable sur PC.
+// Personal calibration (EXACT mirror of posture/calibration.py, checked by
+// tests/test_parity.py). Plain C++, no ESP-IDF dependency: builds on a PC.
 //
-// La camera est fixe : on enregistre quelques secondes de bonne posture, puis on
-// mesure l'ecart a cette reference en longueurs oreille-epaule. Mode "trunk" :
-// les ecarts de la tete ne comptent que si l'epaule a bouge (regarder vers le
-// bas ou ecrire ne declenche rien).
+// The camera is fixed: a few seconds of good posture are recorded, then the
+// deviation from that reference is measured in ear-shoulder lengths. "trunk" mode:
+// head deviations only count if the shoulder has moved (looking down or
+// writing triggers nothing).
 #pragma once
 
 #include <cstdint>
@@ -23,19 +23,19 @@ struct SidePoints {
     bool ok = false;
 };
 
-// Oreille et epaule du cote le mieux vu + direction du regard (0 si inconnue).
+// Ear and shoulder on the best-seen side + facing direction (0 if unknown).
 SidePoints side_points(const Keypoints &k, double thr = CONF_THR);
-// Distances oreille-nez et oreille-oeil (px), 0 si non visibles.
+// Ear-nose and ear-eye distances (px), 0 if not visible.
 void head_sizes(const Keypoints &k, const Point &ear, double thr, double &dn, double &de);
 
-constexpr uint32_t BASELINE_MAGIC = 0xB0570001;  // a changer si la structure change (NVS)
+constexpr uint32_t BASELINE_MAGIC = 0xB0570001;  // change it if the struct changes (NVS)
 
 struct Baseline {
     uint32_t magic = 0;
     Point ear, sh;
     double dirx = 1.0;
-    double ref = 0.0;           // distance oreille-epaule de reference (px)
-    Features features{};        // mediane des features en bonne posture
+    double ref = 0.0;           // reference ear-shoulder distance (px)
+    Features features{};        // median features in good posture
     double head_nose = 0.0;
     double head_eye = 0.0;
     int32_t n_frames = 0;
@@ -52,7 +52,7 @@ struct Deviations {
 };
 
 struct CalibParams {
-    // (seuil, echelle) dans l'ordre de DevIdx ; memes valeurs que config.yaml
+    // (threshold, scale) in DevIdx order; same values as config.yaml
     double thr[N_DEV] = {0.12, 0.30, 12.0, 0.35, 0.45, 0.15};
     double scl[N_DEV] = {0.07, 0.10, 5.0, 0.15, 0.15, 0.07};
     bool trunk_mode = true;
@@ -63,10 +63,10 @@ struct CalibParams {
 };
 
 Deviations deviations(const Baseline &b, const Keypoints &k, double thr = CONF_THR);
-// Probabilite de mauvaise posture d'apres l'ecart, ou -1 si non applicable
-// (pas de mesure, ou etalonnage perime : echelle hors [scale_min, scale_max]).
+// Bad posture probability from the deviations, or -1 if not applicable
+// (no measurement, or stale calibration: scale outside [scale_min, scale_max]).
 double calib_score(const Deviations &d, const CalibParams &p);
-// Indice de l'ecart le plus depasse (-1 si aucun).
+// Index of the most exceeded deviation (-1 if none).
 int calib_worst(const Deviations &d, const CalibParams &p);
 
 class Calibrator {
@@ -81,7 +81,7 @@ public:
     bool active() const { return phase_ != Phase::IDLE; }
     Phase phase() const { return phase_; }
     int n_frames() const { return n_; }
-    // k = nullptr si personne absente. Retourne DONE (baseline() valide) ou FAILED a la fin.
+    // k = nullptr if nobody is in view. Returns DONE (baseline() valid) or FAILED at the end.
     Result update(double now, const Keypoints *k, double thr = CONF_THR);
     const Baseline &baseline() const { return out_; }
 

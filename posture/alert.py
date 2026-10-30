@@ -1,8 +1,8 @@
-"""Machine a etats d'alerte : lissage EMA + hysteresis + duree minimale.
+"""Alert state machine: EMA smoothing + hysteresis + minimum duration.
 
-Miroir de firmware/main/alert.cpp.
-Etats : ABSENT -> OK -> WARNING -> ALERT, retour OK apres `exit_hold_s`
-sous le seuil bas.
+Mirror of firmware/main/alert.cpp.
+States: ABSENT -> OK -> WARNING -> ALERT, back to OK after `exit_hold_s`
+below the low threshold.
 """
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ ABSENT, OK, WARNING, ALERT = "ABSENT", "OK", "WARNING", "ALERT"
 
 @dataclass
 class AlertParams:
-    alpha: float = 0.3          # lissage EMA (1 = pas de lissage)
-    enter_thr: float = 0.70     # seuil haut
-    exit_thr: float = 0.40      # seuil bas
-    trigger_s: float = 30.0     # duree au-dessus du seuil haut avant ALERT
-    exit_hold_s: float = 5.0    # duree sous le seuil bas avant retour OK
+    alpha: float = 0.3          # EMA smoothing (1 = no smoothing)
+    enter_thr: float = 0.70     # high threshold
+    exit_thr: float = 0.40      # low threshold
+    trigger_s: float = 30.0     # time above the high threshold before ALERT
+    exit_hold_s: float = 5.0    # time below the low threshold before going back to OK
     beep_interval_s: float = 60.0
     absent_timeout_s: float = 10.0
     snooze_s: float = 900.0
@@ -42,7 +42,7 @@ class AlertState:
         self.snooze_until = now + self.p.snooze_s
 
     def update(self, now: float, prob: float | None) -> tuple[str, bool]:
-        """prob = None si personne absente. Retourne (etat, bip_a_jouer)."""
+        """prob = None if nobody is in view. Returns (state, beep_now)."""
         p = self.p
         if prob is None:
             if self.last_seen is None or now - self.last_seen >= p.absent_timeout_s:
@@ -72,7 +72,7 @@ class AlertState:
             if self.state == WARNING or (self.state == ALERT and now - self.good_since >= p.exit_hold_s):
                 self.state = OK
         else:
-            # zone d'hysteresis : on garde l'etat, le chrono "mauvais" continue en WARNING
+            # hysteresis band: keep the state, the "bad" timer keeps running in WARNING
             self.good_since = None
 
         beep = False

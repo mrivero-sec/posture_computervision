@@ -1,8 +1,8 @@
-"""Genere des sessions SYNTHETIQUES (squelettes 2D parametriques) pour tester
-le pipeline collecte -> entrainement -> export C sans webcam.
+"""Generates SYNTHETIC sessions (parametric 2D skeletons) to test the
+collect -> train -> C export pipeline without a webcam.
 
-Ces donnees ne servent PAS a evaluer la vraie performance : elles valident
-que tout fonctionne de bout en bout. Les vraies donnees viennent de collect.py.
+This data is NOT meant to measure real performance: it only checks that
+everything works end to end. Real data comes from collect.py.
 
   python scripts/make_synthetic.py --sessions 6 --frames 600
 """
@@ -27,18 +27,18 @@ def _rot(dx, dy, deg):
 
 def skeleton(rng, view, trunk, neck_rel, pitch, head_tilt, sh_tilt, hips_hidden):
     k = empty_kps()
-    s = rng.uniform(0.7, 1.4)                       # echelle (distance camera)
-    T, N, W = 180 * s, 70 * s, 150 * s              # tronc, cou+tete, largeur epaules
+    s = rng.uniform(0.7, 1.4)                       # scale (camera distance)
+    T, N, W = 180 * s, 70 * s, 150 * s              # trunk, neck+head, shoulder width
     hx, hy = rng.uniform(250, 400), rng.uniform(380, 440)
-    c = lambda: rng.uniform(0.75, 0.99)             # confiance keypoint
+    c = lambda: rng.uniform(0.75, 0.99)             # keypoint confidence
 
     if view == "side":
-        d = rng.choice([-1.0, 1.0])                 # regarde a gauche ou a droite
+        d = rng.choice([-1.0, 1.0])                 # facing left or right
         shx, shy = hx + d * T * math.sin(math.radians(trunk)), hy - T * math.cos(math.radians(trunk))
         na = trunk + neck_rel
         ex, ey = shx + d * N * math.sin(math.radians(na)), shy - N * math.cos(math.radians(na))
         nx, ny = ex + d * 0.45 * N * math.cos(math.radians(pitch)), ey + 0.45 * N * math.sin(math.radians(pitch))
-        near = rng.choice([0, 1])                   # cote vers la camera
+        near = rng.choice([0, 1])                   # side facing the camera
         o = 4 * s
         for i_ear, i_sh, i_hip, side in ((L_EAR, L_SH, L_HIP, 0), (R_EAR, R_SH, R_HIP, 1)):
             vis = side == near
@@ -54,7 +54,7 @@ def skeleton(rng, view, trunk, neck_rel, pitch, head_tilt, sh_tilt, hips_hidden)
         dx, dy = _rot(W / 2, 0, sh_tilt * rng.choice([-1, 1]))
         k[L_SH] = (mx + dx, my + dy, c())
         k[R_SH] = (mx - dx, my - dy, c())
-        drop = 0.25 * N * math.sin(math.radians(max(neck_rel, 0)))  # tete en avant = tete plus basse
+        drop = 0.25 * N * math.sin(math.radians(max(neck_rel, 0)))  # head forward = head lower
         hcx, hcy = mx, my - N + drop
         ht = head_tilt * rng.choice([-1, 1])
         for idx, (ox, oy) in ((L_EYE, (0.18 * N, 0)), (R_EYE, (-0.18 * N, 0)),
@@ -87,7 +87,7 @@ def sample(rng, profile):
         trunk += rng.uniform(0, 5)
     pitch = rng.uniform(5, 25) + (15 if bad else 0)
     hips_hidden = rng.random() < (0.3 if profile == "desk" else 0.1)
-    label = int(bad) if rng.random() > 0.03 else int(not bad)   # 3 % de bruit de label
+    label = int(bad) if rng.random() > 0.03 else int(not bad)   # 3 % label noise
     return skeleton(rng, view, trunk, neck_rel, pitch, head_tilt, sh_tilt, hips_hidden), label
 
 
@@ -110,7 +110,7 @@ def main():
             kps, label = sample(rng, profile)
             w.write(name, i * 0.2, profile, label, kps, features.compute(kps))
         w.close()
-    print(f"{args.sessions} sessions synthetiques ecrites dans {out}")
+    print(f"{args.sessions} synthetic sessions written to {out}")
 
 
 if __name__ == "__main__":

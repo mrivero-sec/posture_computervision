@@ -1,6 +1,6 @@
-// Probabilite de mauvaise posture : classifieur exporte (posture_model.h)
-// ou, s'il n'existe pas encore, baseline par regles ISO 11226 / EN 1005-4.
-// Miroir de posture/model.py + posture/rules.py.
+// Bad posture probability: exported classifier (posture_model.h)
+// or, if it does not exist yet, the ISO 11226 / EN 1005-4 rule baseline.
+// Mirror of posture/model.py + posture/rules.py.
 #pragma once
 
 #include <algorithm>
@@ -24,7 +24,7 @@ namespace posture {
 
 inline double sigmoid(double z) { return 1.0 / (1.0 + std::exp(-z)); }
 
-// --- Regles : score = 0.5 pile au seuil ------------------------------------
+// --- Rules: score = exactly 0.5 at the threshold ----------------------------
 inline double rules_score(const Features &f) {
     const bool side_view = f[F_VIEW_RATIO] < 0.5;
     const bool hips = f[F_HIPS_VISIBLE] >= 0.5;
@@ -41,10 +41,10 @@ inline double rules_score(const Features &f) {
     return any ? sigmoid(2.0 * s) : 0.0;
 }
 
-// --- Classifieur exporte ----------------------------------------------------
+// --- Exported classifier ---------------------------------------------------
 inline double predict_proba(const Features &f) {
 #if POSTURE_HAS_MODEL
-    static_assert(POSTURE_N_FEATURES == N_FEATURES, "posture_model.h ne correspond pas aux features");
+    static_assert(POSTURE_N_FEATURES == N_FEATURES, "posture_model.h does not match the features");
     double x[N_FEATURES];
     for (int i = 0; i < N_FEATURES; ++i) x[i] = (f[i] - POSTURE_MEAN[i]) / POSTURE_SCALE[i];
 #if POSTURE_MODEL_IS_MLP

@@ -1,5 +1,5 @@
-"""Pre-labellise des sessions avec les regles ISO (colonne `label_rules`)
-et liste les frames ou ton label et les regles divergent, pour verification.
+"""Pre-labels sessions with the ISO rules (`label_rules` column) and lists
+the frames where your label and the rules disagree, for review.
 
   python scripts/autolabel.py data/bureau_01.csv
 """
@@ -18,7 +18,7 @@ from posture.io import KP_COLS
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv", nargs="+")
-    ap.add_argument("--write", action="store_true", help="ajoute label_rules et score_rules au CSV")
+    ap.add_argument("--write", action="store_true", help="add label_rules and score_rules to the CSV")
     args = ap.parse_args()
     import pandas as pd
 
@@ -32,7 +32,7 @@ def main():
         df["label_rules"] = (s >= 0.5).astype(int)
         df["worst_rule"] = [rules.worst(f, cfg["rules"]) for f in F]
         agree = (df["label_rules"] == df["label"]).mean()
-        print(f"{path}: accord regles / labels manuels = {agree:.1%}")
+        print(f"{path}: rules / manual labels agreement = {agree:.1%}")
         dis = df[df["label_rules"] != df["label"]]
         if len(dis):
             print(dis[["t", "label", "label_rules", "score_rules", "worst_rule"]].head(20).to_string(index=False))

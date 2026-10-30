@@ -1,15 +1,16 @@
-// BAD POSTURE : firmware ESP32-S3 (Freenove ESP32-S3-WROOM CAM ou Seeed XIAO ESP32S3 Sense)
-// camera -> COCOPose (YOLO11n-pose, ESP-DL) -> features -> classifieur -> alerte LED / buzzer
+// BAD POSTURE: ESP32-S3 firmware (Freenove ESP32-S3-WROOM CAM or Seeed XIAO ESP32S3 Sense)
+// camera -> COCOPose (YOLO11n-pose, ESP-DL) -> features -> classifier -> LED / buzzer alert
 //
-// Bouton : appui court = snooze 15 min ; double appui = etalonner (bonne posture
-// pendant quelques secondes) ; appui long = changer de profil bureau / praticien.
-// Le bouton BOOT de la carte etalonne aussi (utile tant que le bouton n'est pas cable).
-// L'etalonnage est garde en flash (NVS), un par profil.
+// Button: short press = snooze 15 min; double press = calibrate (good posture
+// for a few seconds); long press = switch between desk / practitioner profiles.
+// The board's BOOT button also calibrates (handy until the button is wired).
+// The calibration is kept in flash (NVS), one per profile.
 //
-// Sortie serie (115200) :
-//   KP,<ms>,x0,y0,...,x16,y16       keypoints bruts (pour scripts/serial_collect.py)
-//   ST,<ms>,<etat>,<ema>,<prob>,<neck_incl>,<trunk_incl>,<neck_rel>,<infer_ms>,<source>,<sh_drop>,<sh_fwd>,<echelle>,<pire>
-// Aucune image ne quitte la carte.
+// Serial output (115200):
+//   KP,<ms>,x0,y0,...,x16,y16       raw keypoints (for scripts/serial_collect.py)
+//   ST,<ms>,<state>,<ema>,<prob>,<neck_incl>,<trunk_incl>,<neck_rel>,<infer_ms>,<source>,<sh_drop>,<sh_fwd>,<scale>,<worst>
+//      source = calib (calibration in use) | stale (calibration out of range) | model
+// No image ever leaves the board.
 
 #include <cstdio>
 
@@ -61,14 +62,14 @@ static esp_err_t camera_init() {
     c.pin_href = CAM_PIN_HREF;
     c.pin_pclk = CAM_PIN_PCLK;
     c.xclk_freq_hz = 20000000;
-    c.ledc_timer = LEDC_TIMER_0;      // le buzzer utilise TIMER_1 / CHANNEL_1
+    c.ledc_timer = LEDC_TIMER_0;      // the buzzer uses TIMER_1 / CHANNEL_1
     c.ledc_channel = LEDC_CHANNEL_0;
     c.pixel_format = PIXFORMAT_RGB565;
-    c.frame_size = FRAMESIZE_QVGA;    // 320x240 : le modele redimensionne (letterbox) de toute facon
+    c.frame_size = FRAMESIZE_QVGA;    // 320x240: the model letterboxes the input anyway
     c.jpeg_quality = 12;
-    c.fb_count = 2;                   // CAMERA_GRAB_LATEST exige au moins 2 buffers
+    c.fb_count = 2;                   // CAMERA_GRAB_LATEST needs at least 2 buffers
     c.fb_location = CAMERA_FB_IN_PSRAM;
-    c.grab_mode = CAMERA_GRAB_LATEST; // toujours l'image la plus recente
+    c.grab_mode = CAMERA_GRAB_LATEST; // always the most recent frame
     return esp_camera_init(&c);
 }
 
@@ -90,7 +91,7 @@ static void led_rgb(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 static void led_show(State s, bool snoozed) {
-    if (snoozed && s != State::ABSENT) return led_rgb(0, 0, 255);  // bleu = pause
+    if (snoozed && s != State::ABSENT) return led_rgb(0, 0, 255);  // blue = snoozed
     switch (s) {
         case State::ABSENT: led_strip_clear(s_led); break;
         case State::OK: led_rgb(0, 255, 0); break;
@@ -139,8 +140,8 @@ static void button_init() {
     ESP_ERROR_CHECK(gpio_config(&io));
 }
 
-// 0 = rien, 1 = appui court, 2 = appui long, 3 = double appui (detection au relachement).
-// Un appui court n'est rendu qu'apres DOUBLE_PRESS_MS sans second appui.
+// 0 = nothing, 1 = short press, 2 = long press, 3 = double press (detected on release).
+// A short press is only reported after DOUBLE_PRESS_MS without a second press.
 static int button_poll() {
     static bool was_down = false;
     static uint32_t down_at = 0, short_at = 0;
@@ -154,7 +155,7 @@ static int button_poll() {
         if (d >= LONG_PRESS_MS) {
             ev = 2;
             pending = false;
-        } else if (d >= 40) {  // anti-rebond
+        } else if (d >= 40) {  // debounce
             if (pending && t - short_at <= DOUBLE_PRESS_MS) {
                 ev = 3;
                 pending = false;
@@ -172,8 +173,8 @@ static int button_poll() {
     return ev;
 }
 
-// L'inference dure plusieurs secondes : le bouton est lu dans sa propre tache
-// (toutes les 10 ms) pour ne manquer aucun appui.
+// Inference takes several seconds: the button is read in its own task
+// (every 10 ms) so no press is missed.
 static QueueHandle_t s_btn_queue = nullptr;
 
 static void button_task(void *) {
@@ -182,7 +183,7 @@ static void button_task(void *) {
     while (true) {
         int ev = button_poll();
         if (ev) xQueueSend(s_btn_queue, &ev, 0);
-        // bouton BOOT de la carte (GPIO0) : appui = etalonner, sans cablage
+        // board BOOT button (GPIO0): press = calibrate, no wiring needed
         bool boot_down = gpio_get_level((gpio_num_t)PIN_BUTTON_BOOT) == 0;
         if (boot_down && !boot_was_down) boot_down_at = now_ms();
         if (!boot_down && boot_was_down && now_ms() - boot_down_at >= 40) {
@@ -194,7 +195,7 @@ static void button_task(void *) {
     }
 }
 
-// ---- Etalonnage en flash (NVS), un par profil -------------------------------
+// ---- Calibration in flash (NVS), one per profile ----------------------------
 static void nvs_init() {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -225,37 +226,37 @@ static void baseline_save(int profile, const posture::Baseline &b) {
 }
 
 static posture::CalibParams calib_params() {
-    posture::CalibParams p;  // valeurs par defaut = config.yaml (mode trunk)
+    posture::CalibParams p;  // defaults = config.yaml (trunk mode)
     p.trunk_mode = CALIB_TRUNK_MODE;
     return p;
 }
 
 // ---------------------------------------------------------------------------
 extern "C" void app_main(void) {
-    ESP_LOGI(TAG, "BAD POSTURE demarre sur %s, classifieur = %s", BOARD_NAME,
-             POSTURE_HAS_MODEL ? "modele entraine" : "regles ISO");
+    ESP_LOGI(TAG, "BAD POSTURE starting on %s, classifier = %s", BOARD_NAME,
+             POSTURE_HAS_MODEL ? "trained model" : "ISO rules");
     nvs_init();
     ESP_ERROR_CHECK(camera_init());
     led_init();
     buzzer_init();
     button_init();
     s_btn_queue = xQueueCreate(8, sizeof(int));
-    xTaskCreate(button_task, "bouton", 2048, nullptr, 5, nullptr);
+    xTaskCreate(button_task, "button", 2048, nullptr, 5, nullptr);
     led_rgb(255, 255, 255);
 
-    COCOPose *pose = new COCOPose();  // modele choisi dans menuconfig (V2 QAT par defaut)
-    int profile = 0;                   // 0 = bureau, 1 = praticien
+    COCOPose *pose = new COCOPose();  // model selected in menuconfig (V2 QAT by default)
+    int profile = 0;                   // 0 = desk, 1 = practitioner
     posture::AlertState alert(profile_desk());
     const posture::CalibParams cparams = calib_params();
     posture::Calibrator calibrator(CALIB_COUNTDOWN_S, CALIB_DURATION_S, CALIB_MIN_FRAMES);
     posture::Baseline baseline = baseline_load(profile);
-    ESP_LOGI(TAG, "etalonnage %s", baseline.valid() ? "charge depuis la flash" : "absent : double appui pour etalonner");
+    ESP_LOGI(TAG, "calibration %s", baseline.valid() ? "loaded from flash" : "missing: double press to calibrate");
 
-    // tampon pour l'image tournee (la carte est posee en portrait)
+    // buffer for the rotated frame (the board stands in portrait)
     uint16_t *rot_buf = nullptr;
     if (CAM_ROTATE_DEG != 0) {
         rot_buf = (uint16_t *)heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM);
-        if (!rot_buf) ESP_LOGE(TAG, "pas de memoire pour la rotation : image non tournee");
+        if (!rot_buf) ESP_LOGE(TAG, "not enough memory for rotation: frame not rotated");
     }
     led_strip_clear(s_led);
     beep_pattern(1);
@@ -272,22 +273,22 @@ extern "C" void app_main(void) {
             profile = 1 - profile;
             alert.set_params(profile ? profile_practitioner() : profile_desk());
             baseline = baseline_load(profile);
-            ESP_LOGI(TAG, "profil = %s, etalonnage %s", profile ? "praticien" : "bureau",
-                     baseline.valid() ? "charge" : "absent");
+            ESP_LOGI(TAG, "profile = %s, calibration %s", profile ? "practitioner" : "desk",
+                     baseline.valid() ? "loaded" : "missing");
             beep_pattern(profile + 1);
         } else if (ev == 3) {
             calibrator.start(now_s());
-            ESP_LOGI(TAG, "etalonnage : tiens-toi droit, mesure dans %d s", (int)CALIB_COUNTDOWN_S);
+            ESP_LOGI(TAG, "calibration: sit up straight, recording in %d s", (int)CALIB_COUNTDOWN_S);
             buzz(60);
         }
 
-        // pendant l'etalonnage : LED blanche (decompte) puis cyan (mesure)
+        // during calibration: white LED (countdown) then cyan (recording)
         if (calibrator.active()) {
             if (calibrator.phase() == posture::Calibrator::Phase::COUNTDOWN) led_rgb(255, 255, 255);
             else led_rgb(0, 200, 255);
         }
 
-        uint32_t period = calibrator.active() ? 0 : FRAME_PERIOD_MS;  // etalonnage : aussi vite que possible
+        uint32_t period = calibrator.active() ? 0 : FRAME_PERIOD_MS;  // calibration: as fast as possible
         if (now_ms() - last_frame < period) {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
@@ -296,7 +297,7 @@ extern "C" void app_main(void) {
 
         camera_fb_t *fb = esp_camera_fb_get();
         if (!fb) {
-            ESP_LOGW(TAG, "capture camera echouee");
+            ESP_LOGW(TAG, "camera capture failed");
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
@@ -304,7 +305,7 @@ extern "C" void app_main(void) {
         img.data = fb->buf;
         img.width = (uint16_t)fb->width;
         img.height = (uint16_t)fb->height;
-        img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB565BE;  // esp32-camera sort du RGB565 big-endian
+        img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB565BE;  // esp32-camera outputs big-endian RGB565
         if (rot_buf && fb->width * fb->height <= 320 * 240) {
             int dw, dh;
             posture::rotate_u16((const uint16_t *)fb->buf, fb->width, fb->height, rot_buf, CAM_ROTATE_DEG, dw, dh);
@@ -318,7 +319,7 @@ extern "C" void app_main(void) {
         uint32_t infer_ms = now_ms() - t0;
         esp_camera_fb_return(fb);
 
-        // personne la plus grande = la plus proche
+        // largest person = closest
         const dl::detect::result_t *best = nullptr;
         for (const auto &r : res)
             if (r.keypoint.size() >= 34 && (!best || r.box_area() > best->box_area())) best = &r;
@@ -328,7 +329,7 @@ extern "C" void app_main(void) {
             for (int i = 0; i < posture::N_KPS; ++i) {
                 k[i].x = (float)best->keypoint[2 * i];
                 k[i].y = (float)best->keypoint[2 * i + 1];
-                k[i].c = (k[i].x != 0.f || k[i].y != 0.f) ? 1.f : 0.f;  // ESP-DL : (0,0) = non detecte
+                k[i].c = (k[i].x != 0.f || k[i].y != 0.f) ? 1.f : 0.f;  // ESP-DL: (0,0) = not detected
             }
             printf("KP,%lu", (unsigned long)last_frame);
             for (int i = 0; i < posture::N_KPS; ++i) printf(",%d,%d", (int)k[i].x, (int)k[i].y);
@@ -344,10 +345,10 @@ extern "C" void app_main(void) {
                 baseline = calibrator.baseline();
                 baseline_save(profile, baseline);
                 alert.reset();
-                ESP_LOGI(TAG, "etalonnage enregistre (%d images)", (int)baseline.n_frames);
+                ESP_LOGI(TAG, "calibration saved (%d frames)", (int)baseline.n_frames);
                 beep_pattern(2);
             } else if (r == posture::Calibrator::Result::FAILED) {
-                ESP_LOGW(TAG, "etalonnage rate : %d images exploitables (min %d)", calibrator.n_frames(),
+                ESP_LOGW(TAG, "calibration failed: %d usable frames (min %d)", calibrator.n_frames(),
                          (int)CALIB_MIN_FRAMES);
                 led_rgb(255, 0, 0);
                 beep_pattern(3);
@@ -365,7 +366,7 @@ extern "C" void app_main(void) {
             if (baseline.valid()) {
                 dev = posture::deviations(baseline, k);
                 cprob = posture::calib_score(dev, cparams);
-                if (cprob >= 0.0) {  // etalonnage valable : il remplace le classifieur
+                if (cprob >= 0.0) {  // valid calibration: it replaces the classifier
                     prob = cprob;
                     worst = posture::calib_worst(dev, cparams);
                 }
@@ -378,7 +379,7 @@ extern "C" void app_main(void) {
         printf("ST,%lu,%s,%.3f,%.3f,%.1f,%.1f,%.1f,%lu,%s,%.2f,%.2f,%.2f,%s\n", (unsigned long)last_frame,
                posture::state_name(alert.state()), alert.ema(), prob, f[posture::F_NECK_INCL],
                f[posture::F_TRUNK_INCL], f[posture::F_NECK_REL], (unsigned long)infer_ms,
-               cprob >= 0.0 ? "etal" : (baseline.valid() ? "perime" : "modele"), dev.v[posture::D_SH_DROP],
+               cprob >= 0.0 ? "calib" : (baseline.valid() ? "stale" : "model"), dev.v[posture::D_SH_DROP],
                dev.v[posture::D_SH_FWD], dev.scale, worst >= 0 ? posture::DEV_NAMES[worst] : "");
     }
 }

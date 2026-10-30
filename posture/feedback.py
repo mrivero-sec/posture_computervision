@@ -1,4 +1,4 @@
-"""Retour utilisateur cote PC : couleur type LED + bip (simule le materiel)."""
+"""PC-side user feedback: LED-like colour + beep (simulates the hardware)."""
 from __future__ import annotations
 
 import sys

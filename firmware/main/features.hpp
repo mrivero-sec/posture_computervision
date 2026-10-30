@@ -1,6 +1,6 @@
-// Features posturales depuis 17 keypoints COCO.
-// Miroir EXACT de posture/features.py (verifie par tests/test_parity.py).
-// C++ pur, sans dependance ESP-IDF : compilable sur PC pour les tests.
+// Posture features from 17 COCO keypoints.
+// EXACT mirror of posture/features.py (checked by tests/test_parity.py).
+// Plain C++, no ESP-IDF dependency: builds on a PC for the tests.
 #pragma once
 
 #include <array>
@@ -13,7 +13,7 @@ constexpr double CONF_THR = 0.5;
 
 enum Kp { NOSE = 0, L_EYE, R_EYE, L_EAR, R_EAR, L_SH, R_SH, L_ELB, R_ELB, L_WR, R_WR, L_HIP, R_HIP };
 
-// x, y en pixels ; c = confiance (sur ESP-DL : 1 si le point est non nul, sinon 0)
+// x, y in pixels; c = confidence (on ESP-DL: 1 if the point is non-zero, else 0)
 struct Keypoint {
     float x = 0.f, y = 0.f, c = 0.f;
 };

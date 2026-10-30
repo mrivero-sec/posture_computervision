@@ -15,7 +15,7 @@ data/*.calib.json
 data/calibration_*.json
 data/logs/
 
-# Tiers / caches
+# Third-party / caches
 Freenove_ESP32_S3_WROOM_Board-main/
 Freenove_ESP32_S3_WROOM_Board-main.zip
 .pytest_cache/

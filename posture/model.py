@@ -1,4 +1,4 @@
-"""Chargement / prediction du classifieur (ou repli sur les regles)."""
+"""Load the classifier and predict (falls back to the rules)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,7 +22,7 @@ class PostureModel:
 
             bundle = joblib.load(self.path)
             if bundle.get("features") != FEATURE_NAMES:
-                raise ValueError("Le modele a ete entraine avec d'autres features : relancer scripts/train.py")
+                raise ValueError("The model was trained with different features: run scripts/train.py again")
             self.clf = bundle["pipeline"]
             self.kind = bundle.get("kind", "sklearn")
             self.threshold = float(bundle.get("threshold", 0.5))

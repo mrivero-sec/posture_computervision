@@ -1,26 +1,26 @@
 menu "BAD POSTURE"
 
     choice BADPOSTURE_BOARD
-        prompt "Carte cible"
+        prompt "Target board"
         default BADPOSTURE_BOARD_FREENOVE
         help
-            Choisit le brochage camera / LED / buzzer / bouton.
+            Selects the camera / LED / buzzer / button pinout.
 
         config BADPOSTURE_BOARD_FREENOVE
-            bool "Freenove ESP32-S3-WROOM CAM (N16R8, 16 Mo flash)"
+            bool "Freenove ESP32-S3-WROOM CAM (N16R8, 16 MB flash)"
         config BADPOSTURE_BOARD_XIAO
-            bool "Seeed XIAO ESP32S3 Sense (8 Mo flash)"
+            bool "Seeed XIAO ESP32S3 Sense (8 MB flash)"
     endchoice
 
     choice BADPOSTURE_ROTATE
-        prompt "Rotation camera (sens horaire)"
+        prompt "Camera rotation (clockwise)"
         default BADPOSTURE_ROTATE_270
         help
-            270 = carte posee en portrait (montage de profil au bureau), comme
-            camera.rotate dans config.yaml. La personne doit apparaitre debout.
+            270 = board standing in portrait (side-view desk setup), same as
+            camera.rotate in config.yaml. The person must appear upright.
 
         config BADPOSTURE_ROTATE_0
-            bool "0 (paysage)"
+            bool "0 (landscape)"
         config BADPOSTURE_ROTATE_90
             bool "90"
         config BADPOSTURE_ROTATE_180

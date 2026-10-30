@@ -1,17 +1,17 @@
-"""Collecte de donnees labellisees (aucune image enregistree).
+"""Labelled data collection (no images are saved).
 
-Source par defaut : config.yaml (camera de la carte via USB, rotation incluse).
+Default source: config.yaml (board camera over USB, rotation included).
 
-Touches :
-  c      etalonner (bonne posture pendant 5 s) -> data/<session>.calib.json
-  g      enregistrer en BONNE posture (label 0)
-  b      enregistrer en MAUVAISE posture (label 1)
-  espace pause (n'enregistre rien)
-  q      quitter
+Keys:
+  c      calibrate (good posture for 5 s) -> data/<session>.calib.json
+  g      record GOOD posture (label 0)
+  b      record BAD posture (label 1)
+  space  pause (records nothing)
+  q      quit
 
-Exemples :
-  python scripts/collect.py --profile desk --session bureau_01
-  python scripts/collect.py --source 0 --rotate 0      # webcam du PC
+Examples:
+  python scripts/collect.py --profile desk --session desk_01
+  python scripts/collect.py --source 0 --rotate 0      # PC webcam
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import argparse
 import time
 from datetime import datetime
 
-import _common  # noqa: F401  (ajoute la racine au sys.path)
+import _common  # noqa: F401  (adds the repo root to sys.path)
 from _common import open_source, put
 
 from posture import calibration as calib
@@ -33,9 +33,9 @@ def main():
     cam = cfg["camera"]
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--profile", choices=list(cfg["profiles"]), default="desk")
-    ap.add_argument("--session", default=None, help="nom de session (defaut : date/heure)")
+    ap.add_argument("--session", default=None, help="session name (default: date/time)")
     ap.add_argument("--source", default=str(cam.get("source", cam["index"])),
-                    help="index webcam, fichier video ou serial:COM3")
+                    help="webcam index, video file or serial:COM3")
     ap.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=int(cam.get("rotate", 0)))
     ap.add_argument("--backend", default=cfg["pose"]["backend"])
     args = ap.parse_args()
@@ -62,7 +62,7 @@ def main():
     counts = {0: 0, 1: 0}
     t0 = time.time()
     last = 0.0
-    info = "" if baseline else "commence par c (etalonnage), puis g / b"
+    info = "" if baseline else "start with c (calibration), then g / b"
     print(f"Session {session} -> {out}")
     try:
         while True:
@@ -82,8 +82,8 @@ def main():
                     if b is not None:
                         baseline = b
                         b.save(calib_out)
-                        b.save(calib.default_path(args.profile))   # reutilise par run.py
-                        info = f"etalonnage enregistre ({b.n_frames} images)"
+                        b.save(calib.default_path(args.profile))   # reused by run.py
+                        info = f"calibration saved ({b.n_frames} frames)"
                     elif err:
                         info = err
                 elif present and label is not None:
@@ -95,18 +95,18 @@ def main():
                 if calibrator.active:
                     put(frame, calibrator.message(now - t0), 46, (0, 255, 255), 0.6)
                 elif present:
-                    put(frame, f"cou {f[0]:5.1f}  tronc {f[1]:5.1f}  regles p={rules.score(f, cfg['rules']):.2f}", 46)
+                    put(frame, f"neck {f[0]:5.1f}  trunk {f[1]:5.1f}  rules p={rules.score(f, cfg['rules']):.2f}", 46)
                     dev = calib.deviations(baseline, kps, f, thr) if baseline else None
                     if dev is not None:
                         cp = calib.score(dev, cal_thr, cal_par["scale_min"], cal_par["scale_max"], **calib.score_kw(cal_par))
-                        put(frame, f"etal: d_cou {dev['d_neck']:+5.1f}  tete bas {dev['head_drop']:+.2f} "
-                                   f"avant {dev['head_fwd']:+.2f}  p={'-' if cp is None else f'{cp:.2f}'}", 68)
+                        put(frame, f"calib: d_neck {dev['d_neck']:+5.1f}  head_drop {dev['head_drop']:+.2f} "
+                                   f"head_fwd {dev['head_fwd']:+.2f}  p={'-' if cp is None else f'{cp:.2f}'}", 68)
                 else:
-                    put(frame, "personne non detectee", 46, (0, 165, 255))
+                    put(frame, "no person detected", 46, (0, 165, 255))
                 if info:
                     put(frame, info, frame.shape[0] - 34, (0, 255, 255), 0.5)
-                put(frame, "c=etalonner g=good b=bad espace=pause q=quitter", frame.shape[0] - 12, (220, 220, 220), 0.45)
-                cv2.imshow("BAD POSTURE - collecte", frame)
+                put(frame, "c=calibrate g=good b=bad space=pause q=quit", frame.shape[0] - 12, (220, 220, 220), 0.45)
+                cv2.imshow("BAD POSTURE - collect", frame)
                 key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
@@ -123,7 +123,7 @@ def main():
         writer.close()
         cap.release()
         cv2.destroyAllWindows()
-    print(f"Termine : {counts[0]} frames good, {counts[1]} frames bad -> {out}")
+    print(f"Done: {counts[0]} good frames, {counts[1]} bad frames -> {out}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-// Miroir EXACT de posture/calibration.py (voir calibration.hpp).
+// EXACT mirror of posture/calibration.py (see calibration.hpp).
 #include "calibration.hpp"
 
 #include <algorithm>
@@ -21,7 +21,7 @@ SidePoints side_points(const Keypoints &k, double thr) {
     if (conf(k, ear_i, thr) == 0.0 || conf(k, sh_i, thr) == 0.0) return s;
     s.ear = {(double)k[ear_i].x, (double)k[ear_i].y};
     s.sh = {(double)k[sh_i].x, (double)k[sh_i].y};
-    const int order[3] = {NOSE, L_EYE, R_EYE};  // nez, sinon un oeil
+    const int order[3] = {NOSE, L_EYE, R_EYE};  // nose, otherwise an eye
     for (int i : order) {
         if (conf(k, i, thr) > 0.0 && std::fabs((double)k[i].x - s.ear.x) > 1e-6) {
             s.dirx = (double)k[i].x > s.ear.x ? 1.0 : -1.0;
@@ -35,7 +35,7 @@ SidePoints side_points(const Keypoints &k, double thr) {
 void head_sizes(const Keypoints &k, const Point &ear, double thr, double &dn, double &de) {
     dn = de = 0.0;
     if ((double)k[NOSE].c >= thr) dn = std::hypot((double)k[NOSE].x - ear.x, (double)k[NOSE].y - ear.y);
-    int eye = k[R_EYE].c > k[L_EYE].c ? R_EYE : L_EYE;  // comme max() Python : egalite -> gauche
+    int eye = k[R_EYE].c > k[L_EYE].c ? R_EYE : L_EYE;  // like Python max(): tie -> left
     if ((double)k[eye].c >= thr) de = std::hypot((double)k[eye].x - ear.x, (double)k[eye].y - ear.y);
 }
 
@@ -91,7 +91,7 @@ double calib_score(const Deviations &d, const CalibParams &p) {
     return 1.0 / (1.0 + std::exp(-2.0 * e));
 }
 
-// mediane comme numpy (moyenne des deux valeurs centrales si n pair)
+// median like numpy (mean of the two middle values if n is even)
 static double median(double *v, int n) {
     std::sort(v, v + n);
     return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);

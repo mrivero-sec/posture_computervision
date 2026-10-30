@@ -12,11 +12,11 @@ from posture.serialcam import MAGIC, read_jpeg
 
 
 def upper_body(ear=(300.0, 200.0), sh=(290.0, 360.0), conf_r_sh=0.2):
-    """Profil gauche, hanches hors champ, regard vers x croissant."""
+    """Left profile, hips out of frame, facing increasing x."""
     k = empty_kps()
     k[L_EAR] = (*ear, 0.9)
     k[L_SH] = (*sh, 0.9)
-    k[R_SH] = (sh[0] + 150, sh[1] - 60, conf_r_sh)   # epaule cachee inventee (faible conf)
+    k[R_SH] = (sh[0] + 150, sh[1] - 60, conf_r_sh)   # made-up hidden shoulder (low conf)
     k[NOSE] = (ear[0] + 60, ear[1] + 15, 0.9)
     k[L_EYE] = (ear[0] + 45, ear[1] - 5, 0.9)
     return k
@@ -53,7 +53,7 @@ def test_same_posture_is_good():
 
 def test_slump_is_bad_without_hips():
     b, _ = calibrate(upper_body())
-    # avachi : tete et epaule descendent et avancent de ~70 px (~0.45 ref)
+    # slumped: head and shoulder drop and move forward by ~70 px (~0.45 ref)
     k = upper_body(ear=(370.0, 270.0), sh=(330.0, 410.0))
     f = features.compute(k)
     assert f[features.FEATURE_NAMES.index("hips_visible")] == 0.0
@@ -66,32 +66,32 @@ def test_scale_change_invalidates():
     base = upper_body()
     b, _ = calibrate(base)
     k = base.copy()
-    k[:, :2] *= 1.6                                          # tout 1.6x plus grand : s'est rapproche
+    k[:, :2] *= 1.6                                          # everything 1.6x larger: moved closer
     assert calib.score(calib.deviations(b, k, features.compute(k))) is None
 
 
 def test_compressed_neck_is_bad_not_stale():
-    """Avachi : oreille-epaule raccourcie de 30 %, epaule descendue, tete de meme taille."""
+    """Slumped: ear-shoulder 30 % shorter, shoulder lower, same head size."""
     b, _ = calibrate(upper_body())
     k = upper_body(ear=(300.0, 268.0), sh=(290.0, 380.0))
     dev = calib.deviations(b, k, features.compute(k))
-    assert 0.75 <= dev["scale"] <= 1.33          # pas confondu avec un recul
+    assert 0.75 <= dev["scale"] <= 1.33          # not mistaken for moving back
     assert dev["neck_short"] > 0.25
     assert calib.score(dev) > 0.9
 
 
 def test_looking_down_alone_is_ok_in_trunk_mode():
-    """Regard vers le bas / ecriture : la tete bouge, les epaules restent en place."""
+    """Looking down / writing: the head moves, the shoulders stay put."""
     b, _ = calibrate(upper_body())
     k = upper_body(ear=(330.0, 250.0), sh=(290.0, 360.0))
     dev = calib.deviations(b, k, features.compute(k))
     assert dev["head_drop"] > 0.25 and abs(dev["sh_drop"]) < 1e-6
-    assert calib.score(dev) < 0.05                       # tronc d'abord : pas d'alerte
-    assert calib.score(dev, mode="all") > 0.5            # ancien comportement : alerte
+    assert calib.score(dev) < 0.05                       # trunk first: no alert
+    assert calib.score(dev, mode="all") > 0.5            # previous behaviour: alert
 
 
 def test_small_body_rotation_is_ok():
-    """Pivot du fauteuil d'une dizaine de degres : epaule decalee horizontalement de ~0.08 ref."""
+    """Chair swivel of about ten degrees: shoulder shifted horizontally by ~0.08 ref."""
     b, _ = calibrate(upper_body())
     k = upper_body(ear=(312.0, 200.0), sh=(303.0, 360.0))
     assert calib.score(calib.deviations(b, k, features.compute(k))) < 0.1
@@ -109,7 +109,7 @@ def test_too_few_frames_fails():
     c.start(0.0)
     b, err = c.update(0.5, None, None)
     b, err = c.update(1.1, None, None)
-    assert b is None and "rate" in err
+    assert b is None and "failed" in err
 
 
 def test_baseline_roundtrip(tmp_path):
@@ -141,7 +141,7 @@ def test_serial_protocol_skips_text_lines():
     ser = FakeSerial(b"OK camera PID=0x26\n" + MAGIC + struct.pack("<I", len(jpg)) + jpg)
     assert read_jpeg(ser, log=logs.append) == jpg
     assert ser.written == b"c"
-    assert logs == ["[carte] OK camera PID=0x26"]
+    assert logs == ["[board] OK camera PID=0x26"]
 
 
 def test_serial_protocol_truncated():
@@ -150,7 +150,7 @@ def test_serial_protocol_truncated():
 
 
 def facing_left(ear=(300.0, 200.0), sh=(310.0, 360.0)):
-    """Profil regardant vers x decroissant (comme le montage de reference)."""
+    """Profile facing decreasing x (like the reference setup)."""
     k = empty_kps()
     k[L_EAR] = (*ear, 0.9)
     k[L_SH] = (*sh, 0.9)
@@ -170,12 +170,12 @@ NECK = features.FEATURE_NAMES.index("neck_incl")
 
 
 def test_hand_over_mouth_keeps_neck_angle():
-    bad = facing_left(ear=(230.0, 230.0), sh=(310.0, 360.0))   # tete tres en avant
+    bad = facing_left(ear=(230.0, 230.0), sh=(310.0, 360.0))   # head far forward
     ref = features.compute(bad)[NECK]
     assert ref > 25
-    # nez cache : les yeux donnent la direction
+    # nose hidden: the eyes give the direction
     assert features.compute(hide(bad, NOSE))[NECK] == pytest.approx(ref)
-    # nez et yeux caches : tete supposee en avant de l'epaule
+    # nose and eyes hidden: head assumed ahead of the shoulder
     assert features.compute(hide(bad, NOSE, L_EYE))[NECK] == pytest.approx(ref)
 
 

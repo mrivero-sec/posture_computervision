@@ -1,4 +1,4 @@
-// Machine a etats d'alerte (miroir de posture/alert.py).
+// Alert state machine (mirror of posture/alert.py).
 #pragma once
 
 namespace posture {
@@ -24,7 +24,7 @@ public:
     void reset();
     void snooze(double now) { snooze_until_ = now + p_.snooze_s; }
     bool snoozed(double now) const { return now < snooze_until_; }
-    // has_person = false si personne absente. Retourne true s'il faut biper.
+    // has_person = false if nobody is in view. Returns true if a beep is due.
     bool update(double now, bool has_person, double prob);
     State state() const { return state_; }
     double ema() const { return ema_; }

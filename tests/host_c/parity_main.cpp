@@ -1,6 +1,6 @@
-// Harnais de test PC : lit des keypoints (51 floats par ligne, CSV) sur stdin,
-// ecrit les 12 features + la probabilite, en utilisant le code C++ du firmware.
-// Compile par tests/test_parity.py avec g++.
+// PC test harness: reads keypoints (51 floats per line, CSV) on stdin and
+// writes the 12 features + the probability, using the firmware C++ code.
+// Built by tests/test_parity.py with g++.
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     std::string mode = argc > 1 ? argv[1] : "features";
     std::string line;
     if (mode == "alert") {
-        // entree : t,present,prob ; sortie : etat,ema,beep
+        // input: t,present,prob; output: state,ema,beep
         posture::AlertParams p;
         posture::AlertState st(p);
         while (std::getline(std::cin, line)) {
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (mode == "calib") {
-        // C,t,present,<51> = image d'etalonnage ; E,<51> = image a evaluer
+        // C,t,present,<51> = calibration frame; E,<51> = frame to evaluate
         posture::Calibrator cal(1.0, 2.0, 3);
         posture::Baseline b;
         bool started = false;

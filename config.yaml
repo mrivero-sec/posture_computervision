@@ -1,19 +1,19 @@
-# Configuration BAD POSTURE (prototype PC). Les memes valeurs sont reprises
-# dans firmware/main/config.h pour l'ESP32-S3.
+# BAD POSTURE configuration (PC prototype). The same values are mirrored
+# in firmware/main/config.h for the ESP32-S3.
 
 pose:
-  backend: yolo            # yolo (Ultralytics YOLO11n-pose, = modele ESP-DL) | mediapipe
-  weights: yolo11n-pose.pt # telecharge automatiquement au premier lancement
-  imgsz: 320               # 160 / 320 / 640 : plus petit = plus rapide (comme sur ESP32)
-  conf_thr: 0.5            # confiance mini d'un keypoint
+  backend: yolo            # yolo (Ultralytics YOLO11n-pose, = ESP-DL model) | mediapipe
+  weights: yolo11n-pose.pt # downloaded automatically on first run
+  imgsz: 320               # 160 / 320 / 640: smaller = faster (as on the ESP32)
+  conf_thr: 0.5            # minimum keypoint confidence
 
 camera:
   index: 0
-  source: "serial:COM3"    # "0" = webcam du PC ; "serial:COM3" = camera de la carte (sketch arduino/cam_serial)
-  rotate: 270              # 0 / 90 / 180 / 270 (sens horaire) ; 270 = carte posee en portrait
+  source: "serial:COM3"    # "0" = PC webcam; "serial:COM3" = board camera (sketch arduino/cam_serial)
+  rotate: 270              # 0 / 90 / 180 / 270 (clockwise); 270 = board standing in portrait
   width: 640
   height: 480
-  fps_limit: 5             # la posture change lentement : inutile d'aller plus vite
+  fps_limit: 5             # posture changes slowly: no need to go faster
 
 profiles:
   desk:
@@ -31,9 +31,9 @@ profiles:
     trigger_s: 120
     exit_hold_s: 5
     beep_interval_s: 120
-    sound: false           # patient present : LED seule par defaut
+    sound: false           # patient present: LED only by default
 
-# Seuils de la baseline par regles (ISO 11226 / EN 1005-4)
+# Rule baseline thresholds (ISO 11226 / EN 1005-4)
 rules:
   neck_incl: [25, 10]
   neck_rel: [25, 10]
@@ -41,27 +41,27 @@ rules:
   head_tilt: [10, 5]
   shoulder_tilt: [10, 5]
 
-# Etalonnage personnel (touche c dans run.py / collect.py) : ecarts a la
-# position de reference, en longueurs oreille-epaule. [seuil, echelle]
+# Personal calibration (key c in run.py / collect.py): deviations from the
+# reference position, in ear-shoulder lengths. [threshold, scale]
 calibration:
   countdown_s: 3
   duration_s: 5
   min_frames: 8
-  scale_min: 0.75          # echelle hors de cette plage (rapproche / eloigne) -> etalonnage perime
+  scale_min: 0.75          # scale outside this range (moved closer / further) -> calibration stale
   scale_max: 1.33
-  # trunk : tronc d'abord, la tete ne compte que si les epaules ont bouge
-  #         (regarder vers le bas ou ecrire, epaules immobiles -> pas d'alerte)
-  # all   : tous les ecarts comptent (plus sensible au regard)
+  # trunk: trunk first, the head only counts if the shoulders have moved
+  #        (looking down or writing with still shoulders -> no alert)
+  # all  : every deviation counts (more sensitive to gaze)
   mode: trunk
-  gate_sh_drop: 0.07       # epaule descendue de plus de ca -> la tete compte aussi
+  gate_sh_drop: 0.07       # shoulder dropped more than this -> the head counts too
   gate_sh_fwd: 0.10
-  # Une fois etalonne, le classifieur (MLP) n'est plus utilise : il a ete
-  # entraine sur un autre placement de camera et reagit au regard.
+  # Once calibrated, the classifier (MLP) is no longer used: it was trained
+  # on a different camera placement and reacts to gaze.
   use_model_with_calib: false
   thresholds:
-    sh_drop: [0.12, 0.07]  # tronc : epaule qui descend (dos qui s'affaisse)
-    sh_fwd: [0.30, 0.10]   # tronc : epaule qui avance (penche en avant)
-    d_neck: [12, 5]        # tete : deg d'inclinaison oreille-epaule en plus
+    sh_drop: [0.12, 0.07]  # trunk: shoulder drops (back sagging)
+    sh_fwd: [0.30, 0.10]   # trunk: shoulder moves forward (leaning in)
+    d_neck: [12, 5]        # head: extra ear-shoulder inclination in deg
     head_drop: [0.35, 0.15]
     head_fwd: [0.45, 0.15]
-    neck_short: [0.15, 0.07] # oreille-epaule raccourcie (tete enfoncee, dos rond)
+    neck_short: [0.15, 0.07] # shorter ear-shoulder (head sinking, rounded back)
